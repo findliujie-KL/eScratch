@@ -1,6 +1,37 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { HistoryEntry } from './types'
 
+type ShortcutTarget = 'toggle' | 'new' | 'copy'
+
+function matchShortcut(e: React.KeyboardEvent, shortcut: string): boolean {
+  if (!shortcut) return false
+  const parts = shortcut.split('+')
+  if (parts.length < 2) return false
+  const key = parts[parts.length - 1]
+  const modifiers = parts.slice(0, -1)
+
+  const expectMeta = modifiers.includes('Command') || modifiers.includes('Meta')
+  const expectCtrl = modifiers.includes('Control')
+  const expectAlt = modifiers.includes('Alt')
+  const expectShift = modifiers.includes('Shift')
+
+  if (!!e.metaKey !== expectMeta) return false
+  if (!!e.ctrlKey !== expectCtrl) return false
+  if (!!e.altKey !== expectAlt) return false
+  if (!!e.shiftKey !== expectShift) return false
+
+  const eventKey = e.key.length === 1 ? e.key.toUpperCase() : e.key
+  return eventKey === key
+}
+
+function formatShortcut(s: string): string {
+  if (!s) return ''
+  if (typeof navigator !== 'undefined' && navigator.platform.includes('Mac')) {
+    return s.replace(/Command/g, 'Cmd').replace(/Control/g, 'Ctrl')
+  }
+  return s.replace(/Control/g, 'Ctrl')
+}
+
 function App() {
   const [text, setText] = useState('')
   const [history, setHistory] = useState<HistoryEntry[]>([])
@@ -8,8 +39,12 @@ function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [toggleShortcut, setToggleShortcut] = useState('')
   const [toggleShortcutInput, setToggleShortcutInput] = useState('')
+  const [newShortcut, setNewShortcut] = useState('')
+  const [newShortcutInput, setNewShortcutInput] = useState('')
+  const [copyShortcut, setCopyShortcut] = useState('')
+  const [copyShortcutInput, setCopyShortcutInput] = useState('')
   const [alwaysOnTop, setAlwaysOnTop] = useState(false)
-  const [recording, setRecording] = useState(false)
+  const [recordingTarget, setRecordingTarget] = useState<ShortcutTarget | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
   const [indentType, setIndentType] = useState<'space' | 'tab'>('space')
   const [indentSize, setIndentSize] = useState(2)
@@ -28,6 +63,10 @@ function App() {
     window.electronAPI.getConfig().then((config) => {
       setToggleShortcut(config.shortcut)
       setToggleShortcutInput(config.shortcut)
+      setNewShortcut(config.newShortcut)
+      setNewShortcutInput(config.newShortcut)
+      setCopyShortcut(config.copyShortcut)
+      setCopyShortcutInput(config.copyShortcut)
       setAlwaysOnTop(config.alwaysOnTop)
       setIndentType(config.indentType)
       setIndentSize(config.indentSize)
@@ -82,7 +121,7 @@ function App() {
   }, [])
 
   const handleShortcutKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!recording) return
+    if (recordingTarget === null) return
     e.preventDefault()
     e.stopPropagation()
 
@@ -97,10 +136,17 @@ function App() {
 
     const key = e.key.length === 1 ? e.key.toUpperCase() : e.key
     parts.push(key)
+    const recorded = parts.join('+')
 
-    setToggleShortcutInput(parts.join('+'))
-    setRecording(false)
-  }, [recording])
+    if (recordingTarget === 'toggle') {
+      setToggleShortcutInput(recorded)
+    } else if (recordingTarget === 'new') {
+      setNewShortcutInput(recorded)
+    } else if (recordingTarget === 'copy') {
+      setCopyShortcutInput(recorded)
+    }
+    setRecordingTarget(null)
+  }, [recordingTarget])
 
   const handleSaveToggleShortcut = useCallback(async () => {
     if (toggleShortcutInput.trim()) {
@@ -110,6 +156,24 @@ function App() {
       }
     }
   }, [toggleShortcutInput])
+
+  const handleSaveNewShortcut = useCallback(async () => {
+    if (newShortcutInput.trim()) {
+      const success = await window.electronAPI.setLocalShortcut('new', newShortcutInput)
+      if (success) {
+        setNewShortcut(newShortcutInput)
+      }
+    }
+  }, [newShortcutInput])
+
+  const handleSaveCopyShortcut = useCallback(async () => {
+    if (copyShortcutInput.trim()) {
+      const success = await window.electronAPI.setLocalShortcut('copy', copyShortcutInput)
+      if (success) {
+        setCopyShortcut(copyShortcutInput)
+      }
+    }
+  }, [copyShortcutInput])
 
   const handleAlwaysOnTopChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const next = e.target.checked
@@ -173,14 +237,19 @@ function App() {
   }, [indentType, indentSize])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 's' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault()
-      saveCurrentText()
-      return
-    }
-    if (e.key === 't' && (e.metaKey || e.ctrlKey)) {
+    if (matchShortcut(e, newShortcut)) {
       e.preventDefault()
       handleNew()
+      return
+    }
+    if (matchShortcut(e, copyShortcut)) {
+      e.preventDefault()
+      handleCopy()
+      return
+    }
+    if (e.key === 's' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
+      e.preventDefault()
+      saveCurrentText()
       return
     }
     if (e.key === 'Escape') {
@@ -192,7 +261,7 @@ function App() {
         window.electronAPI.hideWindow()
       }
     }
-  }, [showHistory, showSettings, saveCurrentText, handleNew])
+  }, [showHistory, showSettings, saveCurrentText, handleNew, handleCopy, newShortcut, copyShortcut])
 
   const formatDate = (iso: string) => {
     const d = new Date(iso)
@@ -217,7 +286,7 @@ function App() {
           <button
             className="btn btn-new"
             onClick={handleNew}
-            title={`New (${navigator.platform.includes('Mac') ? 'Cmd+T' : 'Ctrl+T'})`}
+            title={newShortcut ? `New (${formatShortcut(newShortcut)})` : 'New'}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -229,7 +298,7 @@ function App() {
           <button
             className={`btn btn-copy ${copyFeedback ? 'copied' : ''}`}
             onClick={handleCopy}
-            title="Copy"
+            title={copyShortcut ? `Copy (${formatShortcut(copyShortcut)})` : 'Copy'}
           >
             {copyFeedback ? (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -403,11 +472,11 @@ function App() {
                 </div>
                 <input
                   type="text"
-                  className={`shortcut-input ${recording ? 'recording' : ''}`}
-                  value={recording ? 'Press keys...' : toggleShortcutInput}
+                  className={`shortcut-input ${recordingTarget === 'toggle' ? 'recording' : ''}`}
+                  value={recordingTarget === 'toggle' ? 'Press keys...' : toggleShortcutInput}
                   onKeyDown={handleShortcutKeyDown}
-                  onFocus={() => setRecording(true)}
-                  onBlur={() => setRecording(false)}
+                  onFocus={() => setRecordingTarget('toggle')}
+                  onBlur={() => setRecordingTarget((t) => (t === 'toggle' ? null : t))}
                   readOnly
                   placeholder="Click to record shortcut"
                 />
@@ -415,7 +484,51 @@ function App() {
                   Save
                 </button>
                 <div className="shortcut-hint">
-                  Hiding the window also copies the editor text to clipboard.
+                  Works globally. Hiding the window also copies the editor text to clipboard.
+                </div>
+              </div>
+              <div className="settings-item">
+                <div className="settings-label">New</div>
+                <div className="shortcut-current">
+                  Current: <code>{newShortcut}</code>
+                </div>
+                <input
+                  type="text"
+                  className={`shortcut-input ${recordingTarget === 'new' ? 'recording' : ''}`}
+                  value={recordingTarget === 'new' ? 'Press keys...' : newShortcutInput}
+                  onKeyDown={handleShortcutKeyDown}
+                  onFocus={() => setRecordingTarget('new')}
+                  onBlur={() => setRecordingTarget((t) => (t === 'new' ? null : t))}
+                  readOnly
+                  placeholder="Click to record shortcut"
+                />
+                <button className="btn-save" onClick={handleSaveNewShortcut}>
+                  Save
+                </button>
+                <div className="shortcut-hint">
+                  Active only when this window has focus.
+                </div>
+              </div>
+              <div className="settings-item">
+                <div className="settings-label">Copy</div>
+                <div className="shortcut-current">
+                  Current: <code>{copyShortcut}</code>
+                </div>
+                <input
+                  type="text"
+                  className={`shortcut-input ${recordingTarget === 'copy' ? 'recording' : ''}`}
+                  value={recordingTarget === 'copy' ? 'Press keys...' : copyShortcutInput}
+                  onKeyDown={handleShortcutKeyDown}
+                  onFocus={() => setRecordingTarget('copy')}
+                  onBlur={() => setRecordingTarget((t) => (t === 'copy' ? null : t))}
+                  readOnly
+                  placeholder="Click to record shortcut"
+                />
+                <button className="btn-save" onClick={handleSaveCopyShortcut}>
+                  Save
+                </button>
+                <div className="shortcut-hint">
+                  Active only when this window has focus.
                 </div>
               </div>
             </div>

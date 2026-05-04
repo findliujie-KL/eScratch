@@ -13,9 +13,15 @@ const configPath = path.join(app.getPath('userData'), 'config.json')
 const historyPath = path.join(app.getPath('userData'), 'history.json')
 
 const defaultMod = 'Control'
+const defaultNewShortcut = `${defaultMod}+T`
+const defaultCopyShortcut = `${defaultMod}+Shift+C`
+
+const shortcutValidator = /^(Command|Control|Alt|Shift|Meta|Super)(\+(Command|Control|Alt|Shift|Meta|Super))*\+[A-Za-z0-9]$/
 
 interface Config {
   shortcut: string
+  newShortcut: string
+  copyShortcut: string
   alwaysOnTop: boolean
   indentType: 'space' | 'tab'
   indentSize: number
@@ -33,6 +39,12 @@ function loadConfig(): Config {
       const saved = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
       return {
         shortcut: saved.shortcut || `${defaultMod}+J`,
+        newShortcut: typeof saved.newShortcut === 'string' && shortcutValidator.test(saved.newShortcut)
+          ? saved.newShortcut
+          : defaultNewShortcut,
+        copyShortcut: typeof saved.copyShortcut === 'string' && shortcutValidator.test(saved.copyShortcut)
+          ? saved.copyShortcut
+          : defaultCopyShortcut,
         alwaysOnTop: saved.alwaysOnTop === true,
         indentType: saved.indentType === 'tab' ? 'tab' : 'space',
         indentSize: [2, 4, 6, 8].includes(Number(saved.indentSize)) ? Number(saved.indentSize) : 2,
@@ -41,6 +53,8 @@ function loadConfig(): Config {
   } catch {}
   return {
     shortcut: `${defaultMod}+J`,
+    newShortcut: defaultNewShortcut,
+    copyShortcut: defaultCopyShortcut,
     alwaysOnTop: false,
     indentType: 'space',
     indentSize: 2,
@@ -142,8 +156,6 @@ function saveCurrentTextToHistory() {
   saveHistory(history)
 }
 
-const shortcutValidator = /^(Command|Control|Alt|Shift|Meta|Super)(\+(Command|Control|Alt|Shift|Meta|Super))*\+[A-Za-z0-9]$/
-
 function registerShortcut(config: Config) {
   globalShortcut.unregisterAll()
   try {
@@ -205,6 +217,19 @@ app.whenReady().then(() => {
     config.shortcut = shortcut
     saveConfig(config)
     registerShortcut(config)
+    return true
+  })
+
+  ipcMain.handle('set-local-shortcut', (_event, name: string, shortcut: string) => {
+    if (name !== 'new' && name !== 'copy') return false
+    if (!shortcutValidator.test(shortcut)) return false
+    const config = loadConfig()
+    if (name === 'new') {
+      config.newShortcut = shortcut
+    } else {
+      config.copyShortcut = shortcut
+    }
+    saveConfig(config)
     return true
   })
 

@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   syncText: (text: string) => ipcRenderer.invoke('sync-text', text),
   getConfig: () => ipcRenderer.invoke('get-config'),
   setShortcut: (shortcut: string) => ipcRenderer.invoke('set-shortcut', shortcut),
+  setLocalShortcut: (name: 'new' | 'copy', shortcut: string) => ipcRenderer.invoke('set-local-shortcut', name, shortcut),
   setAlwaysOnTop: (alwaysOnTop: boolean) => ipcRenderer.invoke('set-always-on-top', alwaysOnTop),
   setIndent: (indentType: string, indentSize: number) => ipcRenderer.invoke('set-indent', indentType, indentSize),
   hideWindow: () => ipcRenderer.invoke('hide-window'),
