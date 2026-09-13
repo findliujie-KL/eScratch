@@ -25,6 +25,8 @@ html, body, #root {
   --danger: #f38ba8;
   --scrollbar: #313244;
   --scrollbar-hover: #45475a;
+  --ws-space-bg: rgba(137, 180, 250, 0.32);
+  --ws-tab-bg: rgba(249, 226, 175, 0.30);
 }
 
 /* Light theme */
@@ -43,6 +45,8 @@ html, body, #root {
   --danger: #d20f39;
   --scrollbar: #ccd0da;
   --scrollbar-hover: #bcc0cc;
+  --ws-space-bg: rgba(100, 120, 180, 0.28);
+  --ws-tab-bg: rgba(223, 142, 29, 0.26);
 }
 
 body {
@@ -131,14 +135,26 @@ body {
   overflow: hidden;
 }
 
+.editor-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  overflow: hidden;
+}
+
 .editor {
   flex: 1;
+  width: 100%;
   padding: 20px;
   background: var(--bg-primary);
   color: var(--text-primary);
   border: none;
   outline: none;
   resize: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
   font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
   font-size: 14px;
   line-height: 1.7;
@@ -147,6 +163,37 @@ body {
 
 .editor::placeholder {
   color: var(--text-muted);
+}
+
+.editor-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.editor-overlay-inner {
+  padding: 20px;
+  color: transparent;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 14px;
+  line-height: 1.7;
+  letter-spacing: 0.3px;
+  will-change: transform;
+}
+
+.ws-space {
+  background: var(--ws-space-bg);
+  border-radius: 2px;
+}
+
+.ws-tab {
+  background: var(--ws-tab-bg);
+  border-radius: 2px;
 }
 
 /* Panel backdrop */

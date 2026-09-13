@@ -32,6 +32,36 @@ function formatShortcut(s: string): string {
   return s.replace(/Control/g, 'Ctrl')
 }
 
+type WhitespaceToken =
+  | { type: 'text'; text: string }
+  | { type: 'space'; text: string }
+  | { type: 'tab'; text: string }
+
+function splitWhitespace(value: string): WhitespaceToken[] {
+  const tokens: WhitespaceToken[] = []
+  let buffer = ''
+  let mode: 'text' | 'space' | 'tab' = 'text'
+
+  const flush = () => {
+    if (buffer) {
+      tokens.push({ type: mode, text: buffer })
+      buffer = ''
+    }
+  }
+
+  for (const ch of value) {
+    const next: 'text' | 'space' | 'tab' =
+      ch === '\t' ? 'tab' : ch === ' ' || ch === '\u3000' ? 'space' : 'text'
+    if (next !== mode) {
+      flush()
+      mode = next
+    }
+    buffer += ch
+  }
+  flush()
+  return tokens
+}
+
 function App() {
   const [text, setText] = useState('')
   const [history, setHistory] = useState<HistoryEntry[]>([])
@@ -48,10 +78,12 @@ function App() {
   const [copyFeedback, setCopyFeedback] = useState(false)
   const [indentType, setIndentType] = useState<'space' | 'tab'>('space')
   const [indentSize, setIndentSize] = useState(2)
+  const [showWhitespace, setShowWhitespace] = useState(false)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark'
   })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const overlayInnerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     document.documentElement.className = theme === 'light' ? 'light' : ''
@@ -70,6 +102,7 @@ function App() {
       setAlwaysOnTop(config.alwaysOnTop)
       setIndentType(config.indentType)
       setIndentSize(config.indentSize)
+      setShowWhitespace(config.showWhitespace)
     })
   }, [])
 
@@ -83,6 +116,24 @@ function App() {
       textareaRef.current?.focus()
     }
   }, [showHistory, showSettings])
+
+  const syncOverlayScroll = useCallback(() => {
+    const textarea = textareaRef.current
+    const inner = overlayInnerRef.current
+    if (!textarea || !inner) return
+    inner.style.width = `${textarea.clientWidth}px`
+    inner.style.transform = `translate(${-textarea.scrollLeft}px, ${-textarea.scrollTop}px)`
+  }, [])
+
+  useEffect(() => {
+    if (!showWhitespace) return
+    syncOverlayScroll()
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const observer = new ResizeObserver(() => syncOverlayScroll())
+    observer.observe(textarea)
+    return () => observer.disconnect()
+  }, [showWhitespace, text, syncOverlayScroll])
 
   const saveCurrentText = useCallback(async () => {
     if (text.trim()) {
@@ -192,6 +243,12 @@ function App() {
     setIndentSize(newSize)
     await window.electronAPI.setIndent(indentType, newSize)
   }, [indentType])
+
+  const handleShowWhitespaceChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.checked
+    const applied = await window.electronAPI.setShowWhitespace(next)
+    setShowWhitespace(applied)
+  }, [])
 
   const handleTabKey = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== 'Tab' || e.nativeEvent.isComposing) return
@@ -362,17 +419,47 @@ function App() {
         {(showSettings || showHistory) && (
           <div className="panel-backdrop" onClick={() => { setShowSettings(false); setShowHistory(false) }} />
         )}
-        <textarea
-          ref={textareaRef}
-          className="editor"
-          style={{ tabSize: indentSize }}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleTabKey}
-          placeholder="Type here..."
-          spellCheck={false}
-          autoFocus
-        />
+        <div className="editor-wrap">
+          <textarea
+            ref={textareaRef}
+            className="editor"
+            style={{ tabSize: indentSize }}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleTabKey}
+            onScroll={syncOverlayScroll}
+            placeholder="Type here..."
+            spellCheck={false}
+            autoFocus
+          />
+          {showWhitespace && (
+            <div className="editor-overlay" aria-hidden="true">
+              <div
+                ref={overlayInnerRef}
+                className="editor-overlay-inner"
+                style={{ tabSize: indentSize }}
+              >
+                {splitWhitespace(text).map((token, index) => {
+                  if (token.type === 'space') {
+                    return (
+                      <span key={index} className="ws-space">
+                        {token.text}
+                      </span>
+                    )
+                  }
+                  if (token.type === 'tab') {
+                    return (
+                      <span key={index} className="ws-tab">
+                        {token.text}
+                      </span>
+                    )
+                  }
+                  return <span key={index}>{token.text}</span>
+                })}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* History panel */}
         {showHistory && (
@@ -463,6 +550,25 @@ function App() {
                     <option value={6}>6</option>
                     <option value={8}>8</option>
                   </select>
+                </div>
+              </div>
+              <div className="settings-item">
+                <div className="settings-row">
+                  <div>
+                    <div className="settings-label">Show Whitespace</div>
+                    <div className="setting-description">
+                      Display spaces, tabs, and full-width spaces as markers.
+                    </div>
+                  </div>
+                  <label className="switch" htmlFor="show-whitespace-toggle">
+                    <input
+                      id="show-whitespace-toggle"
+                      type="checkbox"
+                      checked={showWhitespace}
+                      onChange={handleShowWhitespaceChange}
+                    />
+                    <span className="switch-slider" />
+                  </label>
                 </div>
               </div>
               <div className="settings-item">

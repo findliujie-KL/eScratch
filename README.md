@@ -46,6 +46,7 @@ The shortcut is fully customizable — open settings and press your preferred ke
 - **History** — Past entries are saved automatically when you start a new draft (up to 100)
 - **Dark / Light theme** — Toggle between dark and light mode
 - **Configurable shortcut** — Change the global shortcut in settings by pressing your desired key combination
+- **Show whitespace** — Optionally reveal spaces, tabs, and full-width spaces as visible markers
 
 ## Development
 

@@ -25,6 +25,7 @@ interface Config {
   alwaysOnTop: boolean
   indentType: 'space' | 'tab'
   indentSize: number
+  showWhitespace: boolean
 }
 
 interface HistoryEntry {
@@ -48,6 +49,7 @@ function loadConfig(): Config {
         alwaysOnTop: saved.alwaysOnTop === true,
         indentType: saved.indentType === 'tab' ? 'tab' : 'space',
         indentSize: [2, 4, 6, 8].includes(Number(saved.indentSize)) ? Number(saved.indentSize) : 2,
+        showWhitespace: saved.showWhitespace === true,
       }
     }
   } catch {}
@@ -58,6 +60,7 @@ function loadConfig(): Config {
     alwaysOnTop: false,
     indentType: 'space',
     indentSize: 2,
+    showWhitespace: false,
   }
 }
 
@@ -246,6 +249,13 @@ app.whenReady().then(() => {
     config.indentType = indentType === 'tab' ? 'tab' : 'space'
     config.indentSize = [2, 4, 6, 8].includes(indentSize) ? indentSize : 2
     saveConfig(config)
+  })
+
+  ipcMain.handle('set-show-whitespace', (_event, showWhitespace: boolean) => {
+    const config = loadConfig()
+    config.showWhitespace = showWhitespace === true
+    saveConfig(config)
+    return config.showWhitespace
   })
 
   ipcMain.handle('hide-window', () => {

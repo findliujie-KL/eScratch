@@ -11,6 +11,7 @@ export interface AppConfig {
   alwaysOnTop: boolean
   indentType: 'space' | 'tab'
   indentSize: number
+  showWhitespace: boolean
 }
 
 export interface ElectronAPI {
@@ -24,6 +25,7 @@ export interface ElectronAPI {
   setLocalShortcut: (name: 'new' | 'copy', shortcut: string) => Promise<boolean>
   setAlwaysOnTop: (alwaysOnTop: boolean) => Promise<boolean>
   setIndent: (indentType: string, indentSize: number) => Promise<void>
+  setShowWhitespace: (showWhitespace: boolean) => Promise<boolean>
   hideWindow: () => Promise<void>
 }
 
