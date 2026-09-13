@@ -257,10 +257,6 @@ app.whenReady().then(() => {
     saveConfig(config)
     return config.showWhitespace
   })
-
-  ipcMain.handle('hide-window', () => {
-    win?.hide()
-  })
 })
 
 app.on('window-all-closed', () => {

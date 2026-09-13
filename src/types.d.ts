@@ -26,7 +26,6 @@ export interface ElectronAPI {
   setAlwaysOnTop: (alwaysOnTop: boolean) => Promise<boolean>
   setIndent: (indentType: string, indentSize: number) => Promise<void>
   setShowWhitespace: (showWhitespace: boolean) => Promise<boolean>
-  hideWindow: () => Promise<void>
 }
 
 declare global {

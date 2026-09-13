@@ -12,5 +12,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setAlwaysOnTop: (alwaysOnTop: boolean) => ipcRenderer.invoke('set-always-on-top', alwaysOnTop),
   setIndent: (indentType: string, indentSize: number) => ipcRenderer.invoke('set-indent', indentType, indentSize),
   setShowWhitespace: (showWhitespace: boolean) => ipcRenderer.invoke('set-show-whitespace', showWhitespace),
-  hideWindow: () => ipcRenderer.invoke('hide-window'),
 })

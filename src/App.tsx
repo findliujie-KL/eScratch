@@ -294,6 +294,7 @@ function App() {
   }, [indentType, indentSize])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing) return
     if (matchShortcut(e, newShortcut)) {
       e.preventDefault()
       handleNew()
@@ -314,8 +315,6 @@ function App() {
         setShowHistory(false)
       } else if (showSettings) {
         setShowSettings(false)
-      } else {
-        window.electronAPI.hideWindow()
       }
     }
   }, [showHistory, showSettings, saveCurrentText, handleNew, handleCopy, newShortcut, copyShortcut])
