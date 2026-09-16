@@ -14,8 +14,11 @@ https://youtu.be/qwj9fr77vQg
 
 ```bash
 brew tap lef237/tap
+brew trust lef237/tap
 brew install --cask one-time-editor
 ```
+
+Homebrew 5.1.15+ refuses to load casks from third-party taps until you trust them explicitly.
 
 ### Manual download
 
