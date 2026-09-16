@@ -41,6 +41,8 @@ That's it. No save dialog, no file management, no friction.
 
 The shortcut is fully customizable — open settings and press your preferred key combination to change it.
 
+On macOS, the app lives in the menu bar instead of the Dock. Use its menu to show or hide the editor, or quit the app. Closing the editor window hides it and keeps the current draft available. The global shortcut continues to work.
+
 ## Features
 
 - **Instant toggle** — Global shortcut brings up the editor from any app, and hides it just as fast
@@ -56,6 +58,12 @@ The shortcut is fully customizable — open settings and press your preferred ke
 ```bash
 npm install
 npm run dev
+```
+
+Run the main-process behavior tests with:
+
+```bash
+node --test tests/menu-bar.cjs
 ```
 
 ## Tech Stack
