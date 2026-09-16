@@ -22,7 +22,8 @@
       "dist-electron/**/*"
     ],
     "mac": {
-      "target": ["dmg"],
+      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
       "category": "public.app-category.productivity",
       "icon": "build/icon.icns",
       "extendInfo": {

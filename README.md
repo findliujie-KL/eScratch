@@ -24,6 +24,8 @@ Homebrew 5.1.15+ refuses to load casks from third-party taps until you trust the
 
 Pre-built binaries for macOS, Windows, and Linux are available on the [Releases](https://github.com/lef237/one-time-editor/releases) page.
 
+For macOS releases built with this configuration, choose the `-x64.dmg` download for an Intel Mac or `-arm64.dmg` for Apple Silicon. Intel support through Homebrew also requires the tap to select the matching architecture; see [the release guide](docs/RELEASE.md).
+
 If you download manually on macOS, the app is not signed with an Apple Developer certificate, so macOS may show a warning. To allow it, run:
 
 ```bash
@@ -63,7 +65,7 @@ npm run dev
 Run the main-process behavior tests with:
 
 ```bash
-node --test tests/menu-bar.cjs
+node --test tests/*.cjs
 ```
 
 ## Tech Stack
