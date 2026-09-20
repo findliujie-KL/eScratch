@@ -7,7 +7,7 @@ const { build } = require('../package.json');
 
 // Exercise the installed packager's target selection for the workflow's
 // `electron-builder --mac` command on either runner architecture.
-for (const hostArch of [Arch.x64, Arch.arm64]) {
+for (const hostArch of [Arch.arm64, Arch.x64]) {
   test(`Mac release selects both DMGs on a ${Arch[hostArch]} runner`, () => {
     const targets = computeArchToTargetNamesMap(
       new Map([[hostArch, []]]),
