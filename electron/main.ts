@@ -1,10 +1,12 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, clipboard } from 'electron'
+import { app, BrowserWindow, globalShortcut, ipcMain, clipboard, Tray, Menu, nativeImage } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 
 process.env.DIST = path.join(__dirname, '../dist')
 
 let win: BrowserWindow | null = null
+let tray: Tray | null = null
+let isQuitting = false
 let currentText = ''
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
@@ -104,9 +106,15 @@ function createWindow(config: Config) {
   })
 
 
-  win.on('close', () => {
+  win.on('close', (event) => {
+    if (process.platform === 'darwin' && !isQuitting) {
+      event.preventDefault()
+      copyText()
+      win?.hide()
+      return
+    }
     copyText()
-    saveCurrentTextToHistory()
+    if (!isQuitting) saveCurrentTextToHistory()
   })
 
   win.on('closed', () => {
@@ -123,6 +131,12 @@ function createWindow(config: Config) {
 function toggleWindow() {
   if (!win) {
     createWindow(loadConfig())
+    return
+  }
+  if (win.isMinimized()) {
+    win.restore()
+    win.show()
+    win.focus()
     return
   }
   if (win.isVisible()) {
@@ -168,7 +182,26 @@ function registerShortcut(config: Config) {
   }
 }
 
+function createMenuBar() {
+  // A monochrome template lets macOS adapt the icon to light/dark menu bars.
+  const icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACQAAAAkCAYAAADhAJiYAAAAVUlEQVR4nO2TyQkAMAzDsv/S7QiF1iZHJchX6OFEAHhZppsXpIIgu4+gG8HLR/0RlOojyC5Q+1qMulxQqo8gu0DtazHqckGpPoLsArWvbJD65gQBnNj8Hv8BB9uGHwAAAABJRU5ErkJggg==').resize({ width: 18, height: 18 })
+  icon.setTemplateImage(true)
+  tray = new Tray(icon)
+  tray.setToolTip('One-Time Editor')
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Show / Hide Editor', click: toggleWindow },
+    { type: 'separator' },
+    { label: 'Quit One-Time Editor', click: () => app.quit() },
+  ]))
+  app.dock.hide()
+}
+
+app.on('before-quit', () => {
+  isQuitting = true
+})
+
 app.whenReady().then(() => {
+  if (process.platform === 'darwin') createMenuBar()
   const config = loadConfig()
   createWindow(config)
   registerShortcut(config)
@@ -277,4 +310,6 @@ app.on('activate', () => {
 app.on('will-quit', () => {
   saveCurrentTextToHistory()
   globalShortcut.unregisterAll()
+  tray?.destroy()
+  tray = null
 })

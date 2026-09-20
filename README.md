@@ -24,6 +24,8 @@ Homebrew 5.1.15+ refuses to load casks from third-party taps until you trust the
 
 Pre-built binaries for macOS, Windows, and Linux are available on the [Releases](https://github.com/lef237/one-time-editor/releases) page.
 
+For macOS releases built with this configuration, choose the `-arm64.dmg` download for Apple Silicon or `-x64.dmg` for an Intel Mac. Intel support through Homebrew also requires the tap to select the matching architecture; see [the release guide](docs/RELEASE.md).
+
 If you download manually on macOS, the app is not signed with an Apple Developer certificate, so macOS may show a warning. To allow it, run:
 
 ```bash
@@ -41,6 +43,8 @@ That's it. No save dialog, no file management, no friction.
 
 The shortcut is fully customizable — open settings and press your preferred key combination to change it.
 
+On macOS, the app lives in the menu bar instead of the Dock. Use its menu to show or hide the editor, or quit the app. Closing the editor window hides it and keeps the current draft available. The global shortcut continues to work.
+
 ## Features
 
 - **Instant toggle** — Global shortcut brings up the editor from any app, and hides it just as fast
@@ -56,6 +60,12 @@ The shortcut is fully customizable — open settings and press your preferred ke
 ```bash
 npm install
 npm run dev
+```
+
+Run the main-process behavior tests with:
+
+```bash
+node --test tests/*.cjs
 ```
 
 ## Tech Stack

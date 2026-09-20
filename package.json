@@ -22,9 +22,13 @@
       "dist-electron/**/*"
     ],
     "mac": {
-      "target": ["dmg"],
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
       "category": "public.app-category.productivity",
-      "icon": "build/icon.icns"
+      "icon": "build/icon.icns",
+      "extendInfo": {
+        "LSUIElement": true
+      }
     },
     "win": {
       "target": ["nsis"],

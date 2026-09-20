@@ -1,0 +1,118 @@
+const assert = require('node:assert/strict');
+const { test } = require('node:test');
+const { EventEmitter } = require('node:events');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const ts = require('typescript');
+
+// Exercise the real main process with an in-memory Electron host, without
+// opening windows, touching the clipboard, or changing the user's notes.
+async function launch(platform = 'darwin') {
+  const windows = [], trays = [], shortcuts = new Map(), ipcHandlers = new Map(), writes = [];
+  const app = new EventEmitter();
+  Object.assign(app, {
+    getPath: () => '/test-data', whenReady: () => Promise.resolve(),
+    dock: { hide() { app.dockHidden = true; } },
+    hide() { app.hidden = true; windows.forEach(w => w.hide()); },
+    quit() { app.emit('before-quit'); app.emit('will-quit'); app.quitCalled = true; }
+  });
+  class Window extends EventEmitter {
+    constructor() { super(); this.visible = false; windows.push(this); }
+    loadFile() { this.emit('ready-to-show'); }
+    show() { this.visible = true; }
+    hide() { this.visible = false; }
+    focus() {}
+    isVisible() { return this.visible; }
+    isMinimized() { return !!this.minimized; }
+    restore() { this.minimized = false; }
+    close() {
+      let prevented = false;
+      this.emit('close', { preventDefault() { prevented = true; } });
+      if (!prevented) { this.destroyed = true; this.emit('closed'); }
+    }
+  }
+  class Tray extends EventEmitter {
+    constructor() { super(); trays.push(this); }
+    setToolTip() {}
+    setContextMenu(menu) { this.menu = menu; }
+    destroy() { this.destroyed = true; }
+  }
+  const electron = {
+    app, BrowserWindow: Window, Tray,
+    Menu: { buildFromTemplate: value => value },
+    nativeImage: { createFromDataURL: () => ({ resize() { return this; }, setTemplateImage() {}, isEmpty() { return false; } }) },
+    globalShortcut: { unregisterAll: () => shortcuts.clear(), register: (key, fn) => { shortcuts.set(key, fn); return true; } },
+    ipcMain: { handle: (name, handler) => ipcHandlers.set(name, handler) }, clipboard: { writeText() {} }
+  };
+  const source = fs.readFileSync(path.join(__dirname, '../electron/main.ts'), 'utf8');
+  const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
+  vm.runInNewContext(code, {
+    require: name => name === 'electron' ? electron : name === 'node:fs' ? { existsSync: () => false, writeFileSync: (file, data) => writes.push({ file, data }) } : require(name),
+    exports: {}, __dirname: '/app/dist-electron', process: { platform, env: {} }, console
+  });
+  await Promise.resolve();
+  return { app, windows, trays, shortcuts, ipcHandlers, writes };
+}
+
+test('Mac provides a menu-bar entry and removes the Dock icon', async () => {
+  const { app, trays } = await launch();
+  assert.equal(trays.length, 1);
+  assert.equal(app.dockHidden, true);
+  assert.ok(trays[0].menu.some(item => item.label === 'Quit One-Time Editor'));
+});
+test('closing the Mac window preserves it and Control+J brings it back', async () => {
+  const { windows, shortcuts } = await launch();
+  const window = windows[0];
+  window.close();
+  assert.ok(!window.destroyed, 'closing must preserve the current draft window');
+  assert.equal(window.visible, false);
+  shortcuts.get('Control+J')();
+  assert.equal(windows.length, 1);
+  assert.equal(window.visible, true);
+});
+test('closing a preserved Mac window does not duplicate the draft in history', async () => {
+  const { app, windows, ipcHandlers, writes } = await launch();
+  await ipcHandlers.get('sync-text')(null, 'draft');
+  windows[0].close();
+  windows[0].show();
+  windows[0].close();
+  assert.equal(writes.length, 0, 'hiding the preserved window must not save the draft');
+  app.quit();
+  assert.equal(writes.length, 1, 'quitting must save the draft exactly once');
+  assert.equal(JSON.parse(writes[0].data)[0].text, 'draft');
+});
+test('menu can toggle the editor and quit the background app', async () => {
+  const { app, trays, windows } = await launch();
+  assert.equal(trays.length, 1);
+  const toggle = trays[0].menu.find(item => item.label === 'Show / Hide Editor');
+  toggle.click();
+  assert.equal(windows[0].visible, false);
+  toggle.click();
+  assert.equal(windows[0].visible, true);
+  trays[0].menu.find(item => item.label === 'Quit One-Time Editor').click();
+  assert.equal(app.quitCalled, true);
+  windows[0].close();
+  assert.equal(windows[0].destroyed, true, 'Quit must not be intercepted as hide');
+});
+test('non-Mac platforms retain their existing close behavior', async () => {
+  const { app, trays, windows } = await launch('win32');
+  assert.equal(trays.length, 0);
+  assert.ok(!app.dockHidden);
+  windows[0].close();
+  assert.equal(windows[0].destroyed, true);
+});
+
+test('Mac shortcut hides the application to return focus to the previous app', async () => {
+  const { app, shortcuts, windows } = await launch();
+  shortcuts.get('Control+J')();
+  assert.equal(app.hidden, true);
+  assert.equal(windows[0].visible, false);
+});
+test('shortcut restores a minimized editor', async () => {
+  const { shortcuts, windows } = await launch();
+  windows[0].minimized = true;
+  shortcuts.get('Control+J')();
+  assert.equal(windows[0].minimized, false);
+  assert.equal(windows[0].visible, true);
+});
