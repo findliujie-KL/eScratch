@@ -9,7 +9,7 @@ const ts = require('typescript');
 // Exercise the real main process with an in-memory Electron host, without
 // opening windows, touching the clipboard, or changing the user's notes.
 async function launch(platform = 'darwin') {
-  const windows = [], trays = [], shortcuts = new Map();
+  const windows = [], trays = [], shortcuts = new Map(), ipcHandlers = new Map(), writes = [];
   const app = new EventEmitter();
   Object.assign(app, {
     getPath: () => '/test-data', whenReady: () => Promise.resolve(),
@@ -43,16 +43,16 @@ async function launch(platform = 'darwin') {
     Menu: { buildFromTemplate: value => value },
     nativeImage: { createFromDataURL: () => ({ resize() { return this; }, setTemplateImage() {}, isEmpty() { return false; } }) },
     globalShortcut: { unregisterAll: () => shortcuts.clear(), register: (key, fn) => { shortcuts.set(key, fn); return true; } },
-    ipcMain: { handle() {} }, clipboard: { writeText() {} }
+    ipcMain: { handle: (name, handler) => ipcHandlers.set(name, handler) }, clipboard: { writeText() {} }
   };
   const source = fs.readFileSync(path.join(__dirname, '../electron/main.ts'), 'utf8');
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
   vm.runInNewContext(code, {
-    require: name => name === 'electron' ? electron : name === 'node:fs' ? { existsSync: () => false, writeFileSync() {} } : require(name),
+    require: name => name === 'electron' ? electron : name === 'node:fs' ? { existsSync: () => false, writeFileSync: (file, data) => writes.push({ file, data }) } : require(name),
     exports: {}, __dirname: '/app/dist-electron', process: { platform, env: {} }, console
   });
   await Promise.resolve();
-  return { app, windows, trays, shortcuts };
+  return { app, windows, trays, shortcuts, ipcHandlers, writes };
 }
 
 test('Mac provides a menu-bar entry and removes the Dock icon', async () => {
@@ -70,6 +70,17 @@ test('closing the Mac window preserves it and Control+J brings it back', async (
   shortcuts.get('Control+J')();
   assert.equal(windows.length, 1);
   assert.equal(window.visible, true);
+});
+test('closing a preserved Mac window does not duplicate the draft in history', async () => {
+  const { app, windows, ipcHandlers, writes } = await launch();
+  await ipcHandlers.get('sync-text')(null, 'draft');
+  windows[0].close();
+  windows[0].show();
+  windows[0].close();
+  assert.equal(writes.length, 0, 'hiding the preserved window must not save the draft');
+  app.quit();
+  assert.equal(writes.length, 1, 'quitting must save the draft exactly once');
+  assert.equal(JSON.parse(writes[0].data)[0].text, 'draft');
 });
 test('menu can toggle the editor and quit the background app', async () => {
   const { app, trays, windows } = await launch();

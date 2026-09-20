@@ -110,7 +110,6 @@ function createWindow(config: Config) {
     if (process.platform === 'darwin' && !isQuitting) {
       event.preventDefault()
       copyText()
-      saveCurrentTextToHistory()
       win?.hide()
       return
     }
