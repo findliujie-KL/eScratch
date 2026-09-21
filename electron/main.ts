@@ -7,6 +7,7 @@ process.env.DIST = path.join(__dirname, '../dist')
 let win: BrowserWindow | null = null
 let tray: Tray | null = null
 let isQuitting = false
+let menuBarEnabled = false
 let currentText = ''
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
@@ -28,6 +29,7 @@ interface Config {
   indentType: 'space' | 'tab'
   indentSize: number
   showWhitespace: boolean
+  showInMenuBar: boolean
 }
 
 interface HistoryEntry {
@@ -52,6 +54,7 @@ function loadConfig(): Config {
         indentType: saved.indentType === 'tab' ? 'tab' : 'space',
         indentSize: [2, 4, 6, 8].includes(Number(saved.indentSize)) ? Number(saved.indentSize) : 2,
         showWhitespace: saved.showWhitespace === true,
+        showInMenuBar: saved.showInMenuBar === true,
       }
     }
   } catch {}
@@ -63,6 +66,7 @@ function loadConfig(): Config {
     indentType: 'space',
     indentSize: 2,
     showWhitespace: false,
+    showInMenuBar: false,
   }
 }
 
@@ -107,7 +111,7 @@ function createWindow(config: Config) {
 
 
   win.on('close', (event) => {
-    if (process.platform === 'darwin' && !isQuitting) {
+    if (menuBarEnabled && !isQuitting) {
       event.preventDefault()
       copyText()
       win?.hide()
@@ -183,6 +187,7 @@ function registerShortcut(config: Config) {
 }
 
 function createMenuBar() {
+  if (tray) return
   // A monochrome template lets macOS adapt the icon to light/dark menu bars.
   const icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACQAAAAkCAYAAADhAJiYAAAAVUlEQVR4nO2TyQkAMAzDsv/S7QiF1iZHJchX6OFEAHhZppsXpIIgu4+gG8HLR/0RlOojyC5Q+1qMulxQqo8gu0DtazHqckGpPoLsArWvbJD65gQBnNj8Hv8BB9uGHwAAAABJRU5ErkJggg==').resize({ width: 18, height: 18 })
   icon.setTemplateImage(true)
@@ -196,13 +201,25 @@ function createMenuBar() {
   app.dock.hide()
 }
 
+function applyMenuBarPreference(enabled: boolean) {
+  menuBarEnabled = process.platform === 'darwin' && enabled
+  if (process.platform !== 'darwin') return
+  if (menuBarEnabled) {
+    createMenuBar()
+  } else {
+    tray?.destroy()
+    tray = null
+    app.dock.show()
+  }
+}
+
 app.on('before-quit', () => {
   isQuitting = true
 })
 
 app.whenReady().then(() => {
-  if (process.platform === 'darwin') createMenuBar()
   const config = loadConfig()
+  applyMenuBarPreference(config.showInMenuBar)
   createWindow(config)
   registerShortcut(config)
 
@@ -289,6 +306,14 @@ app.whenReady().then(() => {
     config.showWhitespace = showWhitespace === true
     saveConfig(config)
     return config.showWhitespace
+  })
+
+  ipcMain.handle('set-show-in-menu-bar', (_event, showInMenuBar: boolean) => {
+    const config = loadConfig()
+    config.showInMenuBar = showInMenuBar === true
+    saveConfig(config)
+    applyMenuBarPreference(config.showInMenuBar)
+    return config.showInMenuBar
   })
 })
 

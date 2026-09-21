@@ -8,12 +8,16 @@ const ts = require('typescript');
 
 // Exercise the real main process with an in-memory Electron host, without
 // opening windows, touching the clipboard, or changing the user's notes.
-async function launch(platform = 'darwin') {
+async function launch(platform = 'darwin', initialConfig = null) {
   const windows = [], trays = [], shortcuts = new Map(), ipcHandlers = new Map(), writes = [];
   const app = new EventEmitter();
   Object.assign(app, {
     getPath: () => '/test-data', whenReady: () => Promise.resolve(),
-    dock: { hide() { app.dockHidden = true; } },
+    dock: {
+      hidden: false,
+      hide() { this.hidden = true; app.dockHidden = true; },
+      show() { this.hidden = false; app.dockHidden = false; return Promise.resolve(); },
+    },
     hide() { app.hidden = true; windows.forEach(w => w.hide()); },
     quit() { app.emit('before-quit'); app.emit('will-quit'); app.quitCalled = true; }
   });
@@ -45,24 +49,34 @@ async function launch(platform = 'darwin') {
     globalShortcut: { unregisterAll: () => shortcuts.clear(), register: (key, fn) => { shortcuts.set(key, fn); return true; } },
     ipcMain: { handle: (name, handler) => ipcHandlers.set(name, handler) }, clipboard: { writeText() {} }
   };
+  const fsMock = {
+    existsSync: file => initialConfig !== null && file === '/test-data/config.json',
+    readFileSync: file => file === '/test-data/config.json' ? JSON.stringify(initialConfig) : '',
+    writeFileSync: (file, data) => writes.push({ file, data }),
+  };
   const source = fs.readFileSync(path.join(__dirname, '../electron/main.ts'), 'utf8');
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
   vm.runInNewContext(code, {
-    require: name => name === 'electron' ? electron : name === 'node:fs' ? { existsSync: () => false, writeFileSync: (file, data) => writes.push({ file, data }) } : require(name),
+    require: name => name === 'electron' ? electron : name === 'node:fs' ? fsMock : require(name),
     exports: {}, __dirname: '/app/dist-electron', process: { platform, env: {} }, console
   });
   await Promise.resolve();
   return { app, windows, trays, shortcuts, ipcHandlers, writes };
 }
 
-test('Mac provides a menu-bar entry and removes the Dock icon', async () => {
+test('Dock mode is the default and keeps the Dock icon without a menu-bar entry', async () => {
   const { app, trays } = await launch();
+  assert.equal(trays.length, 0);
+  assert.equal(app.dockHidden, false);
+});
+test('Mac menu-bar mode removes the Dock icon and provides a menu-bar entry', async () => {
+  const { app, trays } = await launch('darwin', { showInMenuBar: true });
   assert.equal(trays.length, 1);
   assert.equal(app.dockHidden, true);
   assert.ok(trays[0].menu.some(item => item.label === 'Quit One-Time Editor'));
 });
-test('closing the Mac window preserves it and Control+J brings it back', async () => {
-  const { windows, shortcuts } = await launch();
+test('closing a menu-bar Mac window preserves it and Control+J brings it back', async () => {
+  const { windows, shortcuts } = await launch('darwin', { showInMenuBar: true });
   const window = windows[0];
   window.close();
   assert.ok(!window.destroyed, 'closing must preserve the current draft window');
@@ -71,8 +85,8 @@ test('closing the Mac window preserves it and Control+J brings it back', async (
   assert.equal(windows.length, 1);
   assert.equal(window.visible, true);
 });
-test('closing a preserved Mac window does not duplicate the draft in history', async () => {
-  const { app, windows, ipcHandlers, writes } = await launch();
+test('closing a preserved menu-bar window does not duplicate the draft in history', async () => {
+  const { app, windows, ipcHandlers, writes } = await launch('darwin', { showInMenuBar: true });
   await ipcHandlers.get('sync-text')(null, 'draft');
   windows[0].close();
   windows[0].show();
@@ -82,8 +96,15 @@ test('closing a preserved Mac window does not duplicate the draft in history', a
   assert.equal(writes.length, 1, 'quitting must save the draft exactly once');
   assert.equal(JSON.parse(writes[0].data)[0].text, 'draft');
 });
+test('closing a Dock-mode Mac window destroys it and saves the draft', async () => {
+  const { windows, ipcHandlers, writes } = await launch();
+  await ipcHandlers.get('sync-text')(null, 'draft');
+  windows[0].close();
+  assert.equal(windows[0].destroyed, true);
+  assert.equal(writes.length, 1);
+});
 test('menu can toggle the editor and quit the background app', async () => {
-  const { app, trays, windows } = await launch();
+  const { app, trays, windows } = await launch('darwin', { showInMenuBar: true });
   assert.equal(trays.length, 1);
   const toggle = trays[0].menu.find(item => item.label === 'Show / Hide Editor');
   toggle.click();
@@ -96,7 +117,7 @@ test('menu can toggle the editor and quit the background app', async () => {
   assert.equal(windows[0].destroyed, true, 'Quit must not be intercepted as hide');
 });
 test('non-Mac platforms retain their existing close behavior', async () => {
-  const { app, trays, windows } = await launch('win32');
+  const { app, trays, windows } = await launch('win32', { showInMenuBar: true });
   assert.equal(trays.length, 0);
   assert.ok(!app.dockHidden);
   windows[0].close();
@@ -104,7 +125,7 @@ test('non-Mac platforms retain their existing close behavior', async () => {
 });
 
 test('Mac shortcut hides the application to return focus to the previous app', async () => {
-  const { app, shortcuts, windows } = await launch();
+  const { app, shortcuts, windows } = await launch('darwin', { showInMenuBar: true });
   shortcuts.get('Control+J')();
   assert.equal(app.hidden, true);
   assert.equal(windows[0].visible, false);
@@ -115,4 +136,23 @@ test('shortcut restores a minimized editor', async () => {
   shortcuts.get('Control+J')();
   assert.equal(windows[0].minimized, false);
   assert.equal(windows[0].visible, true);
+});
+test('enabling the menu-bar preference from settings creates the tray and hides the Dock', async () => {
+  const { app, trays, ipcHandlers, writes } = await launch();
+  assert.equal(trays.length, 0);
+  const applied = await ipcHandlers.get('set-show-in-menu-bar')(null, true);
+  assert.equal(applied, true);
+  assert.equal(trays.length, 1);
+  assert.equal(app.dockHidden, true);
+  assert.equal(writes.length, 1);
+  assert.equal(JSON.parse(writes[0].data).showInMenuBar, true);
+});
+test('disabling the menu-bar preference from settings restores the Dock and removes the tray', async () => {
+  const { app, trays, ipcHandlers, writes } = await launch('darwin', { showInMenuBar: true });
+  const applied = await ipcHandlers.get('set-show-in-menu-bar')(null, false);
+  assert.equal(applied, false);
+  assert.equal(trays[0].destroyed, true);
+  assert.equal(app.dockHidden, false);
+  assert.equal(writes.length, 1);
+  assert.equal(JSON.parse(writes[0].data).showInMenuBar, false);
 });

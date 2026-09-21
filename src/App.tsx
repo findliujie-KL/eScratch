@@ -32,6 +32,8 @@ function formatShortcut(s: string): string {
   return s.replace(/Control/g, 'Ctrl')
 }
 
+const isMac = typeof navigator !== 'undefined' && navigator.platform.includes('Mac')
+
 type WhitespaceToken =
   | { type: 'text'; text: string }
   | { type: 'space'; text: string }
@@ -79,6 +81,7 @@ function App() {
   const [indentType, setIndentType] = useState<'space' | 'tab'>('space')
   const [indentSize, setIndentSize] = useState(2)
   const [showWhitespace, setShowWhitespace] = useState(false)
+  const [showInMenuBar, setShowInMenuBar] = useState(false)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark'
   })
@@ -103,6 +106,7 @@ function App() {
       setIndentType(config.indentType)
       setIndentSize(config.indentSize)
       setShowWhitespace(config.showWhitespace)
+      setShowInMenuBar(config.showInMenuBar)
     })
   }, [])
 
@@ -248,6 +252,12 @@ function App() {
     const next = e.target.checked
     const applied = await window.electronAPI.setShowWhitespace(next)
     setShowWhitespace(applied)
+  }, [])
+
+  const handleShowInMenuBarChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.checked
+    const applied = await window.electronAPI.setShowInMenuBar(next)
+    setShowInMenuBar(applied)
   }, [])
 
   const handleTabKey = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -570,6 +580,27 @@ function App() {
                   </label>
                 </div>
               </div>
+              {isMac && (
+                <div className="settings-item">
+                  <div className="settings-row">
+                    <div>
+                      <div className="settings-label">Show in Menu Bar</div>
+                      <div className="setting-description">
+                        Keep the editor in the menu bar instead of the Dock. Turn off to show it as a regular Dock app.
+                      </div>
+                    </div>
+                    <label className="switch" htmlFor="show-in-menu-bar-toggle">
+                      <input
+                        id="show-in-menu-bar-toggle"
+                        type="checkbox"
+                        checked={showInMenuBar}
+                        onChange={handleShowInMenuBarChange}
+                      />
+                      <span className="switch-slider" />
+                    </label>
+                  </div>
+                </div>
+              )}
               <div className="settings-item">
                 <div className="settings-label">Toggle Window</div>
                 <div className="shortcut-current">

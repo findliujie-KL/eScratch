@@ -12,6 +12,7 @@ export interface AppConfig {
   indentType: 'space' | 'tab'
   indentSize: number
   showWhitespace: boolean
+  showInMenuBar: boolean
 }
 
 export interface ElectronAPI {
@@ -26,6 +27,7 @@ export interface ElectronAPI {
   setAlwaysOnTop: (alwaysOnTop: boolean) => Promise<boolean>
   setIndent: (indentType: string, indentSize: number) => Promise<void>
   setShowWhitespace: (showWhitespace: boolean) => Promise<boolean>
+  setShowInMenuBar: (showInMenuBar: boolean) => Promise<boolean>
 }
 
 declare global {
