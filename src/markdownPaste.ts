@@ -1,3 +1,29 @@
+function recoverWords(original: string, final: string): Map<number, string> {
+  const result = new Map<number, string>()
+  const a = [...original.matchAll(/\S+/g)], b = [...final.matchAll(/\S+/g)]
+  if (!b.length) return result
+  const positions: number[] = []
+  let cursor = 0
+  for (const word of b) {
+    while (cursor < a.length && a[cursor][0] !== word[0]) cursor++
+    if (cursor === a.length) return result
+    positions.push(cursor++)
+  }
+  cursor = a.length - 1
+  for (let i = b.length - 1; i >= 0; i--) {
+    while (cursor >= 0 && a[cursor][0] !== b[i][0]) cursor--
+    if (cursor !== positions[i]) return result
+    cursor--
+  }
+  let previous = -1
+  b.forEach((word, i) => {
+    if (positions[i] > previous + 1) result.set(word.index!, original.slice(a[previous + 1].index!, a[positions[i]].index!))
+    previous = positions[i]
+  })
+  if (previous < a.length - 1) result.set(final.length, original.slice(a[previous].index! + a[previous][0].length))
+  return result
+}
+
 type Part = { text: string; markdown: string }
 const escape = (text: string) => text.replace(/([\\`*_{}\[\]<>#~|])/g, '\\$1')
 const normalize = (text: string) => text.replace(/\s+/g, ' ').trim()
@@ -15,7 +41,7 @@ export function recoverDeletions(original: string, final: string): Map<number, s
   cursor = original.length - 1
   for (let i = final.length - 1; i >= 0; i--) {
     cursor = original.lastIndexOf(final[i], cursor)
-    if (cursor !== positions[i]) return result
+    if (cursor !== positions[i]) return recoverWords(original, final)
     cursor--
   }
   cursor = 0
@@ -80,7 +106,8 @@ export function pasteAsMarkdown(plain: string, html: string, hasRtf: boolean): s
   })
   if (final.endsWith(' ')) { final = final.slice(0, -1); map.pop() }
   const before = new Map<number, string>()
-  if (hasRtf) recoverDeletions(normalize(plain), final).forEach((value, key) => before.set(key < map.length ? map[key] : map.length ? map[map.length - 1] + 1 : parts.length, value))
+  const comparisonPlain = template.content.querySelector('li') ? plain.replace(/^[ \t]*(?:\d+[.)]|[•·])[^\S\r\n]+/gm, '') : plain
+  if (hasRtf) recoverDeletions(normalize(comparisonPlain), final).forEach((value, key) => before.set(key < map.length ? map[key] : map.length ? map[map.length - 1] + 1 : parts.length, value))
   let output = ''
   for (let i = 0; i <= parts.length; i++) {
     if (before.has(i)) { const deleted = before.get(i)!; output += (deleted.match(/^\s*/)?.[0] || '') + '~~' + escape(deleted.trim()) + '~~' + (deleted.match(/\s*$/)?.[0] || '') }

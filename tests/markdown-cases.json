@@ -89,5 +89,19 @@
     "html": "<p>dog</p>",
     "rtf": true,
     "expected": "~~pig~~ dog"
+  },
+  {
+    "name": "Word numbered item with spaced replacement",
+    "plain": "4.\tUpload the installer .exe under beneath  Attach binaries.",
+    "html": "\r\n\r\n<ol style='margin-top:0cm' start=1 type=1>\r\n <li class=MsoNormal style='mso-list:l0 level1 lfo1;tab-stops:list 36.0pt'>Upload\r\n     the installer .exe beneath <span style='mso-spacerun:yes'> </span><b>Attach\r\n     binaries</b>.<o:p></o:p></li>\r\n</ol>\r\n\r\n",
+    "rtf": true,
+    "expected": "1. Upload the installer .exe ~~under~~ beneath  **Attach binaries**."
+  },
+  {
+    "name": "Whitespace alignment around deletion",
+    "plain": "the old dog",
+    "html": "<p>the dog</p>",
+    "rtf": true,
+    "expected": "the ~~old~~ dog"
   }
 ]
