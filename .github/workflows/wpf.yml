@@ -1,0 +1,32 @@
+name: WPF Windows build
+on:
+  push:
+    branches: [wpf-rewrite]
+    paths: ['windows/**', '.github/workflows/wpf.yml']
+  pull_request:
+    paths: ['windows/**', '.github/workflows/wpf.yml']
+  workflow_dispatch:
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build and obtain English OCR data
+        shell: pwsh
+        run: ./windows/build.ps1
+      - name: Verify persistence, shortcuts and native OCR
+        shell: pwsh
+        run: dotnet run --project windows/eScratch.Tests
+      - name: Publish compact portable package
+        shell: pwsh
+        run: ./windows/build.ps1 -Publish
+      - name: Publish standalone portable package
+        shell: pwsh
+        run: ./windows/build.ps1 -Publish -SelfContained
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eScratch-WPF-Windows-x64
+          path: windows/artifacts/*.zip

@@ -1,7 +1,9 @@
-node_modules/
-dist/
-dist-electron/
-*.local
-.DS_Store
-release/
-release-download/
+.tools/
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+windows/artifacts/
+windows/eScratch/Assets/eng.traineddata
+windows/eScratch/Assets/*.download

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Check that files which must not be committed are not staged
 
-FORBIDDEN_PATTERNS="^release/ ^release-download/"
+FORBIDDEN_PATTERNS="^windows/artifacts/ ^.tools/ /bin/ /obj/"
 
 found=0
 for pattern in $FORBIDDEN_PATTERNS; do
@@ -15,7 +15,7 @@ done
 
 if [ "$found" -eq 1 ]; then
   echo ""
-  echo "As noted in docs/RELEASE.md, these files must not be included in the repository."
+  echo "Generated builds and local development tools must not be included in the repository."
   echo "Run 'git restore --staged <file>' to unstage them."
   exit 1
 fi

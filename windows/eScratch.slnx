@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="eScratch.Tests/eScratch.Tests.csproj" />
+  <Project Path="eScratch/eScratch.csproj" />
+</Solution>
