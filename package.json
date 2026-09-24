@@ -9,6 +9,7 @@
     "build": "tsc && vite build",
     "dev:exe": "npm run build && electron-builder --win dir --config.win.signAndEditExecutable=false",
     "preview": "vite preview",
+    "test:markdown": "electron tests/markdown.cjs",
     "start": "electron .",
     "dist": "npm run build && electron-builder"
   },

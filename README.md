@@ -64,3 +64,21 @@ node --test tests/*.cjs
 ## Tech Stack
 
 Electron + React + TypeScript, bundled with Vite.
+
+## Paste as Markdown
+
+Right-click in the editor for Paste (including screenshot OCR) or Paste as Markdown.
+Ctrl+Shift+V invokes Paste as Markdown while the editor has focus. Change it in
+Settings; Restore defaults resets it to Ctrl+Shift+V. Ctrl+V remains normal Paste.
+
+Markdown paste converts basic headings, bold/italic/strikethrough, links, and lists
+to visible plain-text Markdown. Plain-text-only content is left unchanged; image-only
+clipboards use normal Paste instead. Complex document layouts are not reproduced.
+
+When plain text, HTML, and RTF are present together, it attempts deletion recovery
+by comparing normalized plain text against the HTML text. A unique deletion-only
+alignment produces strikethrough, e.g. pigdog versus dog becomes ~~pig~~dog.
+Ambiguous alignments fall back to ordinary Markdown conversion. This is a heuristic,
+not Word revision metadata: unrelated differences between clipboard formats can also
+look like deletions. Insertions are not inferred. RTF presence enables the heuristic;
+HTML supplies the formatting. Clipboard content is processed locally.

@@ -168,6 +168,7 @@ const OCR_LANGUAGES = [
 interface Config {
   shortcut: string
   newShortcut: string
+  markdownShortcut: string
   copyShortcut: string
   alwaysOnTop: boolean
   indentType: 'space' | 'tab'
@@ -189,6 +190,7 @@ function defaultConfig(): Config {
     shortcut: `${defaultMod}+J`,
     newShortcut: defaultNewShortcut,
     copyShortcut: defaultCopyShortcut,
+    markdownShortcut: "Control+Shift+V",
     alwaysOnTop: false,
     indentType: 'space',
     indentSize: 2,
@@ -208,6 +210,7 @@ function loadConfig(): Config {
         newShortcut: typeof saved.newShortcut === 'string' && shortcutValidator.test(saved.newShortcut)
           ? saved.newShortcut
           : defaultNewShortcut,
+        markdownShortcut: typeof saved.markdownShortcut === "string" && shortcutValidator.test(saved.markdownShortcut) ? saved.markdownShortcut : "Control+Shift+V",
         copyShortcut: typeof saved.copyShortcut === 'string' && shortcutValidator.test(saved.copyShortcut)
           ? saved.copyShortcut
           : defaultCopyShortcut,
@@ -622,11 +625,17 @@ app.whenReady().then(() => {
     return true
   })
 
+  ipcMain.handle('read-markdown-clipboard', () => ({ plain: clipboard.readText(), html: clipboard.readHTML(), hasRtf: clipboard.availableFormats().some(f => /rtf|rich text format/i.test(f)) }))
+  ipcMain.handle('editor-paste', () => win?.webContents.paste())
   ipcMain.handle('set-local-shortcut', (_event, name: string, shortcut: string) => {
-    if (name !== 'new' && name !== 'copy') return false
+    if (name !== 'new' && name !== 'copy' && name !== 'markdown') return false
     if (!shortcutValidator.test(shortcut)) return false
     const config = loadConfig()
-    if (name === 'new') {
+    const other = { new: config.newShortcut, copy: config.copyShortcut, markdown: config.markdownShortcut, toggle: config.shortcut }
+    if (Object.entries(other).some(([key, value]) => key !== name && value === shortcut) || shortcut === 'Control+V') return false
+    if (name === 'markdown') {
+      config.markdownShortcut = shortcut
+    } else if (name === 'new') {
       config.newShortcut = shortcut
     } else {
       config.copyShortcut = shortcut

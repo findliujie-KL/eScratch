@@ -1,7 +1,8 @@
+import { pasteAsMarkdown } from './markdownPaste'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { HistoryEntry, OcrDownloadProgress, OcrLanguage } from './types'
 
-type ShortcutTarget = 'toggle' | 'new' | 'copy'
+type ShortcutTarget = 'toggle' | 'new' | 'copy' | 'markdown'
 
 function matchShortcut(e: React.KeyboardEvent, shortcut: string): boolean {
   if (!shortcut) return false
@@ -77,6 +78,10 @@ function App() {
   const [toggleShortcutInput, setToggleShortcutInput] = useState('')
   const [newShortcut, setNewShortcut] = useState('')
   const [newShortcutInput, setNewShortcutInput] = useState('')
+  const [markdownShortcut, setMarkdownShortcut] = useState('Control+Shift+V')
+  const [markdownShortcutInput, setMarkdownShortcutInput] = useState('Control+Shift+V')
+  const [pasteMenu, setPasteMenu] = useState<{ x: number; y: number; markdown: boolean } | null>(null)
+  const [pasteMessage, setPasteMessage] = useState('')
   const [copyShortcut, setCopyShortcut] = useState('')
   const [copyShortcutInput, setCopyShortcutInput] = useState('')
   const [alwaysOnTop, setAlwaysOnTop] = useState(false)
@@ -113,7 +118,7 @@ function App() {
       setToggleShortcutInput(config.shortcut)
       setNewShortcut(config.newShortcut)
       setNewShortcutInput(config.newShortcut)
-      setCopyShortcut(config.copyShortcut)
+      setMarkdownShortcut(config.markdownShortcut); setMarkdownShortcutInput(config.markdownShortcut); setCopyShortcut(config.copyShortcut)
       setCopyShortcutInput(config.copyShortcut)
       setAlwaysOnTop(config.alwaysOnTop)
       setIndentType(config.indentType)
@@ -251,6 +256,8 @@ function App() {
       setToggleShortcutInput(recorded)
     } else if (recordingTarget === 'new') {
       setNewShortcutInput(recorded)
+    } else if (recordingTarget === 'markdown') {
+      setMarkdownShortcutInput(recorded)
     } else if (recordingTarget === 'copy') {
       setCopyShortcutInput(recorded)
     }
@@ -322,7 +329,7 @@ function App() {
       const { config, history: restoredHistory } = await window.electronAPI.restoreDefaults()
       setToggleShortcut(config.shortcut); setToggleShortcutInput(config.shortcut)
       setNewShortcut(config.newShortcut); setNewShortcutInput(config.newShortcut)
-      setCopyShortcut(config.copyShortcut); setCopyShortcutInput(config.copyShortcut)
+      setMarkdownShortcut(config.markdownShortcut); setMarkdownShortcutInput(config.markdownShortcut); setCopyShortcut(config.copyShortcut); setCopyShortcutInput(config.copyShortcut)
       setAlwaysOnTop(config.alwaysOnTop); setIndentType(config.indentType); setIndentSize(config.indentSize)
       setShowWhitespace(config.showWhitespace); setShowInMenuBar(config.showInMenuBar)
       setHistoryLimitInput(String(config.historyLimit)); setHistory(restoredHistory)
@@ -446,8 +453,37 @@ function App() {
     }
   }, [indentType, indentSize])
 
+  const handleMarkdownPaste = useCallback(async () => {
+    setPasteMenu(null)
+    const editor = textareaRef.current
+    if (!editor) return
+    const initial = editor.value, start = editor.selectionStart, end = editor.selectionEnd
+    try {
+      const data = await window.electronAPI.readMarkdownClipboard()
+      if (!data.plain && !data.html) return
+      const result = pasteAsMarkdown(data.plain, data.html, data.hasRtf)
+      if (editor.value !== initial || editor.selectionStart !== start || editor.selectionEnd !== end) { setPasteMessage('Draft or selection changed. Please paste again.'); return }
+      editor.focus()
+      editor.setSelectionRange(start, end)
+      // Use the native editing command so insertion remains one undoable action.
+      document.execCommand('insertText', false, result)
+      setText(editor.value)
+      setPasteMessage('')
+    } catch { setPasteMessage('Could not paste as Markdown. Please try again.') }
+  }, [])
+
+  const handleSaveMarkdownShortcut = useCallback(async () => {
+    const success = await window.electronAPI.setLocalShortcut('markdown', markdownShortcutInput)
+    if (success) { setMarkdownShortcut(markdownShortcutInput); setPasteMessage('') }
+    else setPasteMessage('Choose a different valid shortcut; Ctrl+V is reserved for Paste.')
+  }, [markdownShortcutInput])
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.nativeEvent.isComposing) return
+    if (e.key === 'Escape' && pasteMenu) { setPasteMenu(null); e.preventDefault(); return }
+    if (e.target === textareaRef.current && matchShortcut(e, markdownShortcut)) {
+      e.preventDefault(); void handleMarkdownPaste(); return
+    }
     if (matchShortcut(e, newShortcut)) {
       e.preventDefault()
       handleNew()
@@ -470,7 +506,7 @@ function App() {
         setShowSettings(false)
       }
     }
-  }, [showHistory, showSettings, saveCurrentText, handleNew, handleCopy, newShortcut, copyShortcut])
+  }, [showHistory, showSettings, saveCurrentText, handleNew, handleCopy, newShortcut, copyShortcut, markdownShortcut, handleMarkdownPaste, pasteMenu])
 
   const formatDate = (iso: string) => {
     const d = new Date(iso)
@@ -599,11 +635,25 @@ function App() {
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleTabKey}
             onPaste={handlePaste}
+            onContextMenu={async (e) => {
+              e.preventDefault()
+              const x = Math.max(0, Math.min(e.clientX, window.innerWidth - 260)), y = Math.max(0, Math.min(e.clientY, window.innerHeight - 100))
+              try { const data = await window.electronAPI.readMarkdownClipboard(); setPasteMenu({ x, y, markdown: !!(data.plain || data.html) }) }
+              catch { setPasteMessage('Could not read the clipboard.') }
+            }}
             onScroll={syncOverlayScroll}
             placeholder="Type here..."
             spellCheck={false}
             autoFocus
           />
+          {pasteMenu && <>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onMouseDown={() => setPasteMenu(null)} />
+            <div role="menu" style={{ position: 'fixed', left: pasteMenu.x, top: pasteMenu.y, zIndex: 100, padding: 6, borderRadius: 8, background: 'var(--bg-secondary, #e6e9ef)', boxShadow: '0 2px 12px #0003', display: 'grid' }}>
+              <button role="menuitem" onMouseDown={e => e.preventDefault()} onClick={() => { setPasteMenu(null); textareaRef.current?.focus(); void window.electronAPI.editorPaste() }}>Paste　Ctrl+V</button>
+              <button role="menuitem" disabled={!pasteMenu.markdown} onMouseDown={e => e.preventDefault()} onClick={handleMarkdownPaste}>Paste as Markdown　{formatShortcut(markdownShortcut)}</button>
+            </div>
+          </>}
+          {pasteMessage && <div role="status" className="ocr-status">{pasteMessage}</div>}
           {ocrStatus !== 'idle' && (
             <div className={`ocr-status ${ocrStatus === 'error' ? 'error' : ''}`} role="status">
               {ocrStatus === 'reading' ? 'Reading screenshot…' : 'No text could be read from that image.'}
@@ -948,6 +998,14 @@ function App() {
                 <div className="shortcut-hint">
                   Active only when this window has focus.
                 </div>
+              </div>
+              <div className="settings-item">
+                <div className="settings-label">Paste as Markdown</div>
+                <div className="shortcut-current">Current: <code>{markdownShortcut}</code></div>
+                <input type="text" className={`shortcut-input ${recordingTarget === 'markdown' ? 'recording' : ''}`} value={recordingTarget === 'markdown' ? 'Press keys...' : markdownShortcutInput} onKeyDown={handleShortcutKeyDown} onFocus={() => setRecordingTarget('markdown')} onBlur={() => setRecordingTarget(t => t === 'markdown' ? null : t)} readOnly placeholder="Click to record shortcut" />
+                <button className="btn-save" onClick={handleSaveMarkdownShortcut}>Save</button>
+                <div className="shortcut-hint">Active only in the editor. Default: Ctrl+Shift+V.</div>
+                {pasteMessage && <div role="status" className="shortcut-hint">{pasteMessage}</div>}
               </div>
               <div className="settings-item">
                 <div className="settings-label">Restore defaults</div>

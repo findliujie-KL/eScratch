@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  readMarkdownClipboard: () => ipcRenderer.invoke('read-markdown-clipboard'),
+  editorPaste: () => ipcRenderer.invoke('editor-paste'),
   getHistory: () => ipcRenderer.invoke('get-history'),
   saveToHistory: (text: string) => ipcRenderer.invoke('save-to-history', text),
   deleteHistoryEntry: (id: string) => ipcRenderer.invoke('delete-history-entry', id),
@@ -22,7 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getConfig: () => ipcRenderer.invoke('get-config'),
   restoreDefaults: () => ipcRenderer.invoke('restore-defaults'),
   setShortcut: (shortcut: string) => ipcRenderer.invoke('set-shortcut', shortcut),
-  setLocalShortcut: (name: 'new' | 'copy', shortcut: string) => ipcRenderer.invoke('set-local-shortcut', name, shortcut),
+  setLocalShortcut: (name: 'new' | 'copy' | 'markdown', shortcut: string) => ipcRenderer.invoke('set-local-shortcut', name, shortcut),
   setAlwaysOnTop: (alwaysOnTop: boolean) => ipcRenderer.invoke('set-always-on-top', alwaysOnTop),
   setIndent: (indentType: string, indentSize: number) => ipcRenderer.invoke('set-indent', indentType, indentSize),
   setShowWhitespace: (showWhitespace: boolean) => ipcRenderer.invoke('set-show-whitespace', showWhitespace),

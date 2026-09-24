@@ -7,6 +7,7 @@ export interface HistoryEntry {
 export interface AppConfig {
   shortcut: string
   newShortcut: string
+  markdownShortcut: string
   copyShortcut: string
   alwaysOnTop: boolean
   indentType: 'space' | 'tab'
@@ -32,6 +33,8 @@ export interface OcrDownloadProgress {
 }
 
 export interface ElectronAPI {
+  readMarkdownClipboard: () => Promise<{ plain: string; html: string; hasRtf: boolean }>
+  editorPaste: () => Promise<void>
   getHistory: () => Promise<HistoryEntry[]>
   saveToHistory: (text: string) => Promise<HistoryEntry[]>
   deleteHistoryEntry: (id: string) => Promise<HistoryEntry[]>
@@ -49,7 +52,7 @@ export interface ElectronAPI {
   getConfig: () => Promise<AppConfig>
   restoreDefaults: () => Promise<{ config: AppConfig; history: HistoryEntry[] }>
   setShortcut: (shortcut: string) => Promise<boolean>
-  setLocalShortcut: (name: 'new' | 'copy', shortcut: string) => Promise<boolean>
+  setLocalShortcut: (name: 'new' | 'copy' | 'markdown', shortcut: string) => Promise<boolean>
   setAlwaysOnTop: (alwaysOnTop: boolean) => Promise<boolean>
   setIndent: (indentType: string, indentSize: number) => Promise<void>
   setShowWhitespace: (showWhitespace: boolean) => Promise<boolean>
