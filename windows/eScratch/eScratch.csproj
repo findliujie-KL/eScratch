@@ -12,6 +12,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+    <PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
     <PackageReference Include="Tesseract" Version="5.2.0" />
     <Content Include="Assets/icon.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets/eng.traineddata" CopyToOutputDirectory="PreserveNewest" />

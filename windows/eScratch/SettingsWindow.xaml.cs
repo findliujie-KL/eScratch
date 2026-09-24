@@ -25,7 +25,7 @@ public partial class SettingsWindow : UserControl
         TopmostBox.IsChecked = s.AlwaysOnTop; LightBox.IsChecked = s.LightTheme; WhitespaceBox.IsChecked = s.ShowWhitespace;
         HistoryLimitBox.Text = s.HistoryLimit.ToString();
         IndentBox.SelectedIndex = s.IndentType == "tab" ? 1 : 0; IndentSizeBox.SelectedIndex = s.IndentSize / 2 - 1;
-        ToggleBox.Text = s.Shortcut; NewBox.Text = s.NewShortcut; CopyBox.Text = s.CopyShortcut;
+        ToggleBox.Text = s.Shortcut; NewBox.Text = s.NewShortcut; CopyBox.Text = s.CopyShortcut; MarkdownBox.Text = s.MarkdownShortcut;
         LanguagePicker.ItemsSource = ocr.Catalog;
         LanguagePicker.AddHandler(TextBoxBase.TextChangedEvent, new TextChangedEventHandler(SearchLanguages));
         RefreshInstalled();
@@ -58,14 +58,15 @@ public partial class SettingsWindow : UserControl
         if (!int.TryParse(HistoryLimitBox.Text, out var limit) || limit < 1 || limit > 1000) { Feedback.Text = "Enter a history limit between 1 and 1000."; return; }
         try
         {
-            var shortcuts = new[] { ToggleBox.Text, NewBox.Text, CopyBox.Text }.Select(Hotkey.Parse).ToArray();
-            if (shortcuts.Select(k => (k.Key, k.Modifiers)).Distinct().Count() != 3) { Feedback.Text = "Choose different shortcuts for each action."; return; }
+            var shortcuts = new[] { ToggleBox.Text, NewBox.Text, CopyBox.Text, MarkdownBox.Text }.Select(Hotkey.Parse).ToArray();
+            if (shortcuts[3].Key == Key.V && shortcuts[3].Modifiers == ModifierKeys.Control) { Feedback.Text = "Ctrl+V is reserved for normal Paste."; return; }
+            if (shortcuts.Select(k => (k.Key, k.Modifiers)).Distinct().Count() != 4) { Feedback.Text = "Choose different shortcuts for each action."; return; }
         }
         catch { Feedback.Text = "Record a valid shortcut in each field."; return; }
         if (limit < store.State.History.Count && MessageBox.Show(Window.GetWindow(this), $"Keep only the newest {limit} history entries? Older entries will be removed.", "Reduce history", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
         if (!registerShortcut(ToggleBox.Text)) { Feedback.Text = "That global shortcut is already in use. Please choose another."; return; }
         var s = store.State.Settings;
-        s.Shortcut = ToggleBox.Text; s.NewShortcut = NewBox.Text; s.CopyShortcut = CopyBox.Text;
+        s.Shortcut = ToggleBox.Text; s.NewShortcut = NewBox.Text; s.CopyShortcut = CopyBox.Text; s.MarkdownShortcut = MarkdownBox.Text;
         s.AlwaysOnTop = TopmostBox.IsChecked == true; s.LightTheme = LightBox.IsChecked == true; s.ShowWhitespace = WhitespaceBox.IsChecked == true;
         s.HistoryLimit = limit; s.IndentType = IndentBox.SelectedIndex == 1 ? "tab" : "space"; s.IndentSize = (IndentSizeBox.SelectedIndex + 1) * 2;
         try { store.Save(); changed(); Close(); } catch (Exception ex) { Feedback.Text = "Could not save: " + ex.Message; }

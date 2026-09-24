@@ -60,7 +60,7 @@ a generated image with native OCR. `--network` additionally downloads Spanish,
 recognizes with two languages, removes it, and verifies cancellation cleanup.
 The WPF integration checks also exercise image paste, undo, editing during OCR,
 theme initialization, image-only and PNG-only routed paste commands, and language search after changing a selection. The full
-suite currently contains 39 checks. It does not modify your application data or
+suite currently contains 53 offline checks (57 with network checks). It does not modify your application data or
 clipboard.
 
 ## Portable releases
@@ -79,6 +79,43 @@ Both include native OCR and English data and require the Visual C++ x64 runtime.
 Extract the entire ZIP and run `eScratch.exe`; the EXE must stay beside its assets
 and native libraries. These are unsigned portable packages, not installers.
 License texts are included under `Assets/Licenses`.
+
+## Compact Windows installer
+
+Install Inno Setup 7, then run:
+
+```powershell
+./windows/build-installer.ps1 -Compiler 'C:/Program Files (x86)/Inno Setup 7/ISCC.exe'
+```
+
+The compiler argument is optional when the compiler is at `.tools/inno/ISCC.exe`.
+The output is `windows/artifacts/installer/eScratch-2.0.0-win-x64-setup.exe`
+(approximately 6.2 MB). This includes English OCR and only the x64 native libraries;
+it excludes debug symbols and the shared .NET runtime.
+
+Setup installs per user under `%LOCALAPPDATA%/Programs/eScratch`. It checks for
+stable .NET 10 Desktop and Core runtimes in the x64 registry entries, and the
+Visual C++ x64 runtime needed by native OCR. A core-only .NET installation,
+.NET Framework, x86 runtime, or another .NET major version does not satisfy the check.
+When components are missing, the user can:
+
+- Download and install missing components (about 60 MB for .NET, 26 MB for VC++).
+- Open Microsoft's download pages and install manually, then click Next again.
+- Install the app only and provide missing components later.
+
+Shared component installation may require administrator consent. Downloads use
+pinned official Microsoft URLs and SHA-256 checksums from `installer/prerequisites.json`.
+Refresh those pins for future runtime servicing releases after verifying Microsoft's
+release metadata and Authenticode signatures. No runtime installers are bundled.
+Download failures allow retry or changing the option; launch is disabled when
+components are missing or a runtime installation requested a restart.
+Uninstall removes the app but preserves drafts, settings, OCR downloads, and shared runtimes.
+The installer is unsigned.
+
+For unattended installation, explicitly use `/PREREQUISITES=download` or
+`/PREREQUISITES=skip` with `/VERYSILENT`. Without an explicit choice, silent setup
+fails if prerequisites are missing. `/CHECKONLY="C:/path/report.txt"` writes detection
+results and exits without installation (the exit code indicates setup did not run).
 
 ## Data and migration
 
@@ -105,3 +142,21 @@ internet access, while recognition after download works offline.
 
 
 
+
+## Paste as Markdown
+
+Right-click in the editor for Paste (including screenshot OCR) or Paste as Markdown.
+Ctrl+Shift+V invokes Paste as Markdown while the editor has focus. Change it in
+Settings; Restore defaults resets it to Ctrl+Shift+V. Ctrl+V remains normal Paste.
+
+Markdown paste converts basic headings, bold/italic/strikethrough, links, and lists
+to visible plain-text Markdown. Plain-text-only content is left unchanged; image-only
+clipboards use normal Paste instead. Complex document layouts are not reproduced.
+
+When plain text, HTML, and RTF are present together, it attempts deletion recovery
+by comparing normalized plain text against the HTML text. A unique deletion-only
+alignment produces strikethrough, e.g. pigdog versus dog becomes ~~pig~~dog.
+Ambiguous alignments fall back to ordinary Markdown conversion. This is a heuristic,
+not Word revision metadata: unrelated differences between clipboard formats can also
+look like deletions. Insertions are not inferred. RTF presence enables the heuristic;
+HTML supplies the formatting. Clipboard content is processed locally.

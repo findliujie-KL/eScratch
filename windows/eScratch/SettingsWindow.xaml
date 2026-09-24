@@ -17,6 +17,7 @@
    <StackPanel Margin="0,12"><TextBlock Text="Toggle shortcut" Style="{StaticResource Label}"/><TextBox x:Name="ToggleBox" IsReadOnly="True" PreviewKeyDown="RecordShortcut"/><TextBlock Text="Click the field and press a shortcut to show or hide the editor." Style="{StaticResource Hint}" Margin="0,8,0,0"/></StackPanel>
    <StackPanel Margin="0,12"><TextBlock Text="New draft shortcut" Style="{StaticResource Label}"/><TextBox x:Name="NewBox" IsReadOnly="True" PreviewKeyDown="RecordShortcut"/></StackPanel>
    <StackPanel Margin="0,12"><TextBlock Text="Copy shortcut" Style="{StaticResource Label}"/><TextBox x:Name="CopyBox" IsReadOnly="True" PreviewKeyDown="RecordShortcut"/></StackPanel>
+   <StackPanel Margin="0,12"><TextBlock Text="Paste as Markdown shortcut" Style="{StaticResource Label}"/><TextBox x:Name="MarkdownBox" IsReadOnly="True" PreviewKeyDown="RecordShortcut"/><TextBlock Text="Active only in the editor." Style="{StaticResource Hint}"/></StackPanel>
   </StackPanel></ScrollViewer>
  </DockPanel>
 </UserControl>

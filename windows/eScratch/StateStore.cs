@@ -10,6 +10,7 @@ public sealed class Settings
 {
     public string Shortcut { get; set; } = "Control+J";
     public string NewShortcut { get; set; } = "Control+T";
+    public string MarkdownShortcut { get; set; } = "Control+Shift+V";
     public string CopyShortcut { get; set; } = "Control+Shift+C";
     public bool AlwaysOnTop { get; set; }
     public string IndentType { get; set; } = "space";
@@ -79,6 +80,7 @@ public sealed class StateStore
         var s = State.Settings;
         s.Shortcut = ValidShortcut(s.Shortcut, "Control+J");
         s.NewShortcut = ValidShortcut(s.NewShortcut, "Control+T");
+        s.MarkdownShortcut = ValidShortcut(s.MarkdownShortcut, "Control+Shift+V");
         s.CopyShortcut = ValidShortcut(s.CopyShortcut, "Control+Shift+C");
         s.HistoryLimit = Math.Clamp(s.HistoryLimit, 1, 1000);
         if (!new[] { 2, 4, 6, 8 }.Contains(s.IndentSize)) s.IndentSize = 2;

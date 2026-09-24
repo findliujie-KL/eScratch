@@ -1,0 +1,93 @@
+[
+  {
+    "name": "Word deletion recovery",
+    "plain": "A quick brown fox jumps over the lazy pigdog.",
+    "html": "<p>A quick brown fox jumps over the lazy dog.</p>",
+    "rtf": true,
+    "expected": "A quick brown fox jumps over the lazy ~~pig~~dog."
+  },
+  {
+    "name": "Require all three clipboard formats",
+    "plain": "pigdog",
+    "html": "<p>dog</p>",
+    "rtf": false,
+    "expected": "dog"
+  },
+  {
+    "name": "Ambiguous repeated text falls back",
+    "plain": "cat cat",
+    "html": "<p>cat</p>",
+    "rtf": true,
+    "expected": "cat"
+  },
+  {
+    "name": "Conflicting text falls back",
+    "plain": "other",
+    "html": "<p>final</p>",
+    "rtf": true,
+    "expected": "final"
+  },
+  {
+    "name": "Plain Markdown stays unchanged",
+    "plain": "**hello**\nworld",
+    "html": "",
+    "rtf": false,
+    "expected": "**hello**\nworld"
+  },
+  {
+    "name": "Formatting",
+    "plain": "Bold and italic",
+    "html": "<p><b>Bold</b> and <i>italic</i></p>",
+    "rtf": false,
+    "expected": "**Bold** and *italic*"
+  },
+  {
+    "name": "Links",
+    "plain": "Example",
+    "html": "<a href=\"https://example.com\">Example</a>",
+    "rtf": false,
+    "expected": "[Example](https://example.com)"
+  },
+  {
+    "name": "Headings and lists",
+    "plain": "Heading\nFirst\nSecond",
+    "html": "<h2>Heading</h2><ul><li>First</li><li>Second</li></ul>",
+    "rtf": false,
+    "expected": "## Heading\n\n- First\n\n- Second"
+  },
+  {
+    "name": "Unsafe content ignored",
+    "plain": "safe",
+    "html": "<script>alert(1)</script><p><a href=\"javascript:alert(1)\">safe</a></p>",
+    "rtf": false,
+    "expected": "safe"
+  },
+  {
+    "name": "Unicode deletion",
+    "plain": "猫犬",
+    "html": "<p>犬</p>",
+    "rtf": true,
+    "expected": "~~猫~~犬"
+  },
+  {
+    "name": "No inference of insertion",
+    "plain": "the dog",
+    "html": "<p>the dog</p>",
+    "rtf": true,
+    "expected": "the dog"
+  },
+  {
+    "name": "Trailing deletion remains in paragraph",
+    "plain": "dogcat",
+    "html": "<p>dog</p>",
+    "rtf": true,
+    "expected": "dog~~cat~~"
+  },
+  {
+    "name": "Deletion whitespace stays outside markers",
+    "plain": "pig dog",
+    "html": "<p>dog</p>",
+    "rtf": true,
+    "expected": "~~pig~~ dog"
+  }
+]

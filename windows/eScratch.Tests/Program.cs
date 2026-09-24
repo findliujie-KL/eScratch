@@ -22,7 +22,17 @@ internal static class Program
         Directory.CreateDirectory(folder);
         try
         {
+            using var cases = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "markdown-cases.json")));
+            foreach (var test in cases.RootElement.EnumerateArray())
+            {
+                var actual = MarkdownPaste.Convert(test.GetProperty("plain").GetString()!, test.GetProperty("html").GetString()!, test.GetProperty("rtf").GetBoolean());
+                Check(actual == test.GetProperty("expected").GetString(), "Markdown: " + test.GetProperty("name").GetString() + " => " + actual);
+            }
             var store = new StateStore(folder);
+            Check(store.State.Settings.MarkdownShortcut == "Control+Shift+V", "Markdown shortcut defaults to Ctrl+Shift+V");
+            store.State.Settings.MarkdownShortcut = "Control+Alt+M"; store.Save();
+            Check(new StateStore(folder).State.Settings.MarkdownShortcut == "Control+Alt+M", "Custom Markdown shortcut survives restart");
+            Check(store.RestoreDefaults(_ => true) && store.State.Settings.MarkdownShortcut == "Control+Shift+V", "Restore defaults resets Markdown shortcut");
             Check(store.State.Settings.HistoryLimit == 10, "History defaults to 10");
             store.Remember("  "); Check(store.State.History.Count == 0, "Blank drafts do not enter history");
             for (var i = 0; i < 12; i++) store.Remember("Draft " + i);

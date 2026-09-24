@@ -39,6 +39,17 @@ public partial class MainWindow : Window
         saveTimer.Tick += (_, _) => { saveTimer.Stop(); SaveState(); };
         copyFeedbackTimer.Tick += (_, _) => { copyFeedbackTimer.Stop(); CopyButton.ClearValue(Button.ForegroundProperty); if (Status.Text == "Copied") Status.Text = ""; };
         DataObject.AddPastingHandler(Editor, OnPaste);
+        var menu = new ContextMenu();
+        var paste = new MenuItem { Header = "Paste", Command = ApplicationCommands.Paste, CommandTarget = Editor.TextArea, InputGestureText = "Ctrl+V" };
+        var markdown = new MenuItem { Header = "Paste as Markdown" };
+        markdown.Click += (_, _) => PasteMarkdown();
+        menu.Items.Add(paste); menu.Items.Add(markdown);
+        menu.Opened += (_, _) => {
+            markdown.InputGestureText = store.State.Settings.MarkdownShortcut.Replace("Control", "Ctrl");
+            try { var data = readClipboard(); markdown.IsEnabled = !Editor.IsReadOnly && data != null && (data.GetDataPresent(DataFormats.UnicodeText) || data.GetDataPresent(DataFormats.Html)); }
+            catch { markdown.IsEnabled = false; }
+        };
+        Editor.ContextMenu = menu;
         // AvalonEdit's default CanPaste only accepts text. Intercept the routed
         // command before that check so image-only Ctrl+V and Shift+Insert work.
         CommandManager.AddPreviewCanExecuteHandler(Editor.TextArea, CanPasteImage);
@@ -185,10 +196,29 @@ public partial class MainWindow : Window
         if (settingsWindow != null) return;
         try
         {
-            if (Hotkey.Parse(store.State.Settings.NewShortcut).Matches(this, e)) { NewClick(sender, e); e.Handled = true; }
+            if (Editor.IsKeyboardFocusWithin && Hotkey.Parse(store.State.Settings.MarkdownShortcut).Matches(this, e)) { PasteMarkdown(); e.Handled = true; }
+            else if (Hotkey.Parse(store.State.Settings.NewShortcut).Matches(this, e)) { NewClick(sender, e); e.Handled = true; }
             else if (Hotkey.Parse(store.State.Settings.CopyShortcut).Matches(this, e)) { CopyDraft(); e.Handled = true; }
         }
         catch (NotSupportedException) { }
+    }
+    private void PasteMarkdown()
+    {
+        if (Editor.IsReadOnly) return;
+        try
+        {
+            var data = readClipboard();
+            if (data == null) return;
+            var plain = data.GetData(DataFormats.UnicodeText) as string ?? "";
+            var html = data.GetData(DataFormats.Html) as string ?? "";
+            if (plain.Length == 0 && html.Length == 0) return;
+            var text = MarkdownPaste.Convert(plain, html, data.GetDataPresent(DataFormats.Rtf, false));
+            var start = Editor.SelectionStart;
+            Editor.Document.Replace(start, Editor.SelectionLength, text);
+            Editor.CaretOffset = start + text.Length; Editor.Focus();
+            Status.Text = "Pasted as Markdown";
+        }
+        catch (Exception ex) { Status.Text = "Could not paste as Markdown: " + ex.Message; }
     }
     private void CanPasteImage(object sender, CanExecuteRoutedEventArgs e)
     {

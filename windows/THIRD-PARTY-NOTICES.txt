@@ -1,5 +1,6 @@
 eScratch WPF uses the following open-source components:
 
+Html Agility Pack (MIT) — https://github.com/zzzprojects/html-agility-pack
 AvalonEdit (MIT) — https://github.com/icsharpcode/AvalonEdit
 Tesseract .NET wrapper (Apache-2.0) — https://github.com/charlesw/tesseract
 Tesseract OCR (Apache-2.0) — https://github.com/tesseract-ocr/tesseract

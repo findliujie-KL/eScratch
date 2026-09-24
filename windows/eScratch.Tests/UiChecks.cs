@@ -34,6 +34,15 @@ internal static class UiChecks
             ((Button)window.FindName("SettingsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((Border)window.FindName("PanelBackdrop")).Visibility == Visibility.Collapsed, "Clicking Settings again dismisses the panel");
             var editor = (TextEditor)window.FindName("Editor");
+            clipboardData = new DataObject();
+            clipboardData.SetData(DataFormats.UnicodeText, "pigdog");
+            clipboardData.SetData(DataFormats.Html, "<p>dog</p>");
+            clipboardData.SetData(DataFormats.Rtf, "{\\rtf1 dog}");
+            editor.Text = "Before OLD After"; editor.Select(7, 3);
+            ((MenuItem)editor.ContextMenu.Items[1]).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            check(editor.Text == "Before ~~pig~~dog After", "Markdown context menu replaces selection and recovers deletion");
+            editor.Undo(); check(editor.Text == "Before OLD After", "Markdown paste is one undoable edit");
+            clipboardData = new DataObject(DataFormats.Bitmap, image);
             var status = (TextBlock)window.FindName("Status");
             editor.Text = "Before OLD After"; editor.Select(7, 3);
             var data = new DataObject(DataFormats.Bitmap, image);
