@@ -184,6 +184,21 @@ interface HistoryEntry {
   createdAt: string
 }
 
+function defaultConfig(): Config {
+  return {
+    shortcut: `${defaultMod}+J`,
+    newShortcut: defaultNewShortcut,
+    copyShortcut: defaultCopyShortcut,
+    alwaysOnTop: false,
+    indentType: 'space',
+    indentSize: 2,
+    showWhitespace: false,
+    showInMenuBar: false,
+    ocrLanguages: ['eng'],
+    historyLimit: 10,
+  }
+}
+
 function loadConfig(): Config {
   try {
     if (fs.existsSync(configPath)) {
@@ -210,18 +225,7 @@ function loadConfig(): Config {
       }
     }
   } catch {}
-  return {
-    shortcut: `${defaultMod}+J`,
-    newShortcut: defaultNewShortcut,
-    copyShortcut: defaultCopyShortcut,
-    alwaysOnTop: false,
-    indentType: 'space',
-    indentSize: 2,
-    showWhitespace: false,
-    showInMenuBar: false,
-    ocrLanguages: ['eng'],
-    historyLimit: 10,
-  }
+  return defaultConfig()
 }
 
 function saveConfig(config: Config) {
@@ -586,6 +590,27 @@ app.whenReady().then(() => {
 
   ipcMain.handle('get-config', () => {
     return loadConfig()
+  })
+
+  ipcMain.handle('restore-defaults', async () => {
+    const previous = loadConfig()
+    const config = defaultConfig()
+    // Reserve the default before releasing the user's working shortcut.
+    if (!globalShortcut.isRegistered(config.shortcut) && !globalShortcut.register(config.shortcut, toggleWindow)) {
+      throw new Error('The default shortcut is in use by another app. Close that app and retry.')
+    }
+    try {
+      await resetOcrWorker()
+      saveConfig(config)
+    } catch (error) {
+      if (previous.shortcut !== config.shortcut) globalShortcut.unregister(config.shortcut)
+      throw error
+    }
+    if (previous.shortcut !== config.shortcut) globalShortcut.unregister(previous.shortcut)
+    win?.setAlwaysOnTop(config.alwaysOnTop)
+    applyMenuBarPreference(config.showInMenuBar)
+    const history = loadLimitedHistory()
+    return { config, history }
   })
 
   ipcMain.handle('set-shortcut', (_event, shortcut: string) => {

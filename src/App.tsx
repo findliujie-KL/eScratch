@@ -71,6 +71,8 @@ function App() {
   const [clearHistoryArmed, setClearHistoryArmed] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [restoringDefaults, setRestoringDefaults] = useState(false)
+  const [restoreMessage, setRestoreMessage] = useState('')
   const [toggleShortcut, setToggleShortcut] = useState('')
   const [toggleShortcutInput, setToggleShortcutInput] = useState('')
   const [newShortcut, setNewShortcut] = useState('')
@@ -311,6 +313,27 @@ function App() {
     const applied = await window.electronAPI.setShowInMenuBar(next)
     setShowInMenuBar(applied)
   }, [])
+
+  const handleRestoreDefaults = async () => {
+    if (!window.confirm('Restore all settings to their defaults? This resets shortcuts, appearance, indentation, OCR selection to English, and the history limit to 10. Only the newest 10 history entries will be kept. Your current draft and downloaded OCR languages will be preserved.')) return
+    setRestoringDefaults(true)
+    setRestoreMessage('')
+    try {
+      const { config, history: restoredHistory } = await window.electronAPI.restoreDefaults()
+      setToggleShortcut(config.shortcut); setToggleShortcutInput(config.shortcut)
+      setNewShortcut(config.newShortcut); setNewShortcutInput(config.newShortcut)
+      setCopyShortcut(config.copyShortcut); setCopyShortcutInput(config.copyShortcut)
+      setAlwaysOnTop(config.alwaysOnTop); setIndentType(config.indentType); setIndentSize(config.indentSize)
+      setShowWhitespace(config.showWhitespace); setShowInMenuBar(config.showInMenuBar)
+      setHistoryLimitInput(String(config.historyLimit)); setHistory(restoredHistory)
+      setTheme('dark'); setRecordingTarget(null); setClearHistoryArmed(false)
+      setOcrLanguages(await window.electronAPI.getOcrLanguages())
+      setOcrLanguageQuery(''); setOcrLanguageToDownload(null); setOcrLanguageDropdownOpen(false); setOcrLanguageError('')
+      setRestoreMessage('Default settings restored.')
+    } catch (error) {
+      setRestoreMessage(error instanceof Error ? error.message : 'Could not restore defaults. Please try again.')
+    } finally { setRestoringDefaults(false) }
+  }
 
   const handleClearHistory = useCallback(async () => {
     if (!clearHistoryArmed) {
@@ -925,6 +948,14 @@ function App() {
                 <div className="shortcut-hint">
                   Active only when this window has focus.
                 </div>
+              </div>
+              <div className="settings-item">
+                <div className="settings-label">Restore defaults</div>
+                <div className="setting-description">Reset all settings, including shortcuts and the history limit (10). Your draft and downloaded languages are kept.</div>
+                <button className="btn-save" onClick={handleRestoreDefaults} disabled={restoringDefaults || downloadingLanguage !== null}>
+                  {restoringDefaults ? 'Restoring…' : 'Restore defaults'}
+                </button>
+                {restoreMessage && <div className="shortcut-hint" role="status">{restoreMessage}</div>}
               </div>
             </div>
           </div>

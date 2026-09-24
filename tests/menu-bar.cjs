@@ -8,7 +8,7 @@ const ts = require('typescript');
 
 // Exercise the real main process with an in-memory Electron host, without
 // opening windows, touching the clipboard, or changing the user's notes.
-async function launch(platform = 'darwin', initialConfig = null) {
+async function launch(platform = 'darwin', initialConfig = null, blockedShortcut = null) {
   const windows = [], trays = [], shortcuts = new Map(), ipcHandlers = new Map(), writes = [];
   const storedFiles = new Map();
   const normalizePath = file => file.replaceAll('\\', '/');
@@ -31,6 +31,7 @@ async function launch(platform = 'darwin', initialConfig = null) {
     show() { this.visible = true; }
     hide() { this.visible = false; }
     focus() {}
+    setAlwaysOnTop(value) { this.alwaysOnTop = value; }
     isVisible() { return this.visible; }
     isMinimized() { return !!this.minimized; }
     restore() { this.minimized = false; }
@@ -53,7 +54,11 @@ async function launch(platform = 'darwin', initialConfig = null) {
       createFromDataURL: () => ({ resize() { return this; }, setTemplateImage() {}, isEmpty() { return false; } }),
       createFromPath: () => ({ isEmpty() { return false; } }),
     },
-    globalShortcut: { unregisterAll: () => shortcuts.clear(), register: (key, fn) => { shortcuts.set(key, fn); return true; } },
+    globalShortcut: {
+      unregisterAll: () => shortcuts.clear(), unregister: key => shortcuts.delete(key),
+      isRegistered: key => shortcuts.has(key),
+      register: (key, fn) => { if (key === blockedShortcut) return false; shortcuts.set(key, fn); return true; }
+    },
     ipcMain: { handle: (name, handler) => ipcHandlers.set(name, handler) }, clipboard: { writeText() {} }
   };
   const fsMock = {
@@ -71,7 +76,7 @@ async function launch(platform = 'darwin', initialConfig = null) {
     exports: {}, __dirname: '/app/dist-electron', process: { platform, env: {} }, console
   });
   await new Promise(resolve => setImmediate(resolve));
-  return { app, windows, trays, shortcuts, ipcHandlers, writes };
+  return { app, windows, trays, shortcuts, ipcHandlers, writes, storedFiles };
 }
 
 test('Dock mode is the default and keeps the Dock icon without a menu-bar entry', async () => {
@@ -199,4 +204,38 @@ test('disabling the menu-bar preference from settings restores the Dock and remo
   assert.equal(app.dockHidden, false);
   assert.equal(writes.length, 1);
   assert.equal(JSON.parse(writes[0].data).showInMenuBar, false);
+});
+
+test('restore defaults resets settings and runtime state, keeps the draft and downloaded languages, and limits history to ten', async () => {
+  const host = await launch('win32', { shortcut: 'Control+K', newShortcut: 'Control+N', copyShortcut: 'Alt+C', alwaysOnTop: true, indentType: 'tab', indentSize: 8, showWhitespace: true, ocrLanguages: ['spa'], historyLimit: 20 });
+  const defaults = await launch('win32');
+  host.storedFiles.set('/test-data/ocr-languages/spa.traineddata.gz', 'installed language');
+  for (let i = 0; i < 12; i++) await host.ipcHandlers.get('save-to-history')(null, `note ${i}`);
+  await host.ipcHandlers.get('sync-text')(null, 'current draft');
+  const result = await host.ipcHandlers.get('restore-defaults')();
+  assert.equal(JSON.stringify(result.config), JSON.stringify(await defaults.ipcHandlers.get('get-config')()));
+  assert.equal(result.history.length, 10);
+  assert.equal(result.history[0].text, 'note 11');
+  assert.equal(host.shortcuts.has('Control+J'), true);
+  assert.equal(host.shortcuts.has('Control+K'), false);
+  assert.equal(host.windows[0].alwaysOnTop, false);
+  assert.equal(host.storedFiles.get('/test-data/ocr-languages/spa.traineddata.gz'), 'installed language');
+  host.app.quit();
+  assert.equal(JSON.parse(host.storedFiles.get('/test-data/history.json'))[0].text, 'current draft');
+});
+
+test('restore defaults leaves settings and working shortcut intact when the default shortcut is unavailable', async () => {
+  const host = await launch('win32', { shortcut: 'Control+K', historyLimit: 30 }, 'Control+J');
+  const before = await host.ipcHandlers.get('get-config')();
+  await assert.rejects(host.ipcHandlers.get('restore-defaults')(), /in use/);
+  assert.equal(JSON.stringify(await host.ipcHandlers.get('get-config')()), JSON.stringify(before));
+  assert.equal(host.shortcuts.has('Control+K'), true);
+  assert.equal(host.writes.length, 0);
+});
+
+test('restore defaults switches macOS menu-bar mode back to Dock mode', async () => {
+  const host = await launch('darwin', { showInMenuBar: true });
+  await host.ipcHandlers.get('restore-defaults')();
+  assert.equal(host.app.dockHidden, false);
+  assert.equal(host.trays[0].destroyed, true);
 });

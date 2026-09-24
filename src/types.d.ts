@@ -47,6 +47,7 @@ export interface ElectronAPI {
   setOcrLanguages: (codes: string[]) => Promise<OcrLanguage[]>
   onOcrDownloadProgress: (callback: (progress: OcrDownloadProgress) => void) => () => void
   getConfig: () => Promise<AppConfig>
+  restoreDefaults: () => Promise<{ config: AppConfig; history: HistoryEntry[] }>
   setShortcut: (shortcut: string) => Promise<boolean>
   setLocalShortcut: (name: 'new' | 'copy', shortcut: string) => Promise<boolean>
   setAlwaysOnTop: (alwaysOnTop: boolean) => Promise<boolean>

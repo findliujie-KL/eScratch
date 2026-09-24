@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('ocr-download-progress', listener)
   },
   getConfig: () => ipcRenderer.invoke('get-config'),
+  restoreDefaults: () => ipcRenderer.invoke('restore-defaults'),
   setShortcut: (shortcut: string) => ipcRenderer.invoke('set-shortcut', shortcut),
   setLocalShortcut: (name: 'new' | 'copy', shortcut: string) => ipcRenderer.invoke('set-local-shortcut', name, shortcut),
   setAlwaysOnTop: (alwaysOnTop: boolean) => ipcRenderer.invoke('set-always-on-top', alwaysOnTop),
