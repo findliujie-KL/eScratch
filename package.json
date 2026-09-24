@@ -7,6 +7,7 @@
     "prepare": "git config core.hooksPath .githooks",
     "dev": "vite",
     "build": "tsc && vite build",
+    "dev:exe": "npm run build && electron-builder --win dir --config.win.signAndEditExecutable=false",
     "preview": "vite preview",
     "start": "electron .",
     "dist": "npm run build && electron-builder"
