@@ -13,6 +13,21 @@ export interface AppConfig {
   indentSize: number
   showWhitespace: boolean
   showInMenuBar: boolean
+  ocrLanguages: string[]
+}
+
+export interface OcrLanguage {
+  code: string
+  name: string
+  installed: boolean
+  selected: boolean
+  sizeBytes: number | null
+}
+
+export interface OcrDownloadProgress {
+  code: string
+  receivedBytes: number
+  totalBytes: number | null
 }
 
 export interface ElectronAPI {
@@ -21,6 +36,13 @@ export interface ElectronAPI {
   deleteHistoryEntry: (id: string) => Promise<HistoryEntry[]>
   copyToClipboard: (text: string) => Promise<void>
   syncText: (text: string) => Promise<void>
+  closeWindow: () => Promise<void>
+  recognizeImage: (imageBytes: Uint8Array) => Promise<string>
+  getOcrLanguages: () => Promise<OcrLanguage[]>
+  downloadOcrLanguage: (code: string) => Promise<OcrLanguage[]>
+  removeOcrLanguage: (code: string) => Promise<OcrLanguage[]>
+  setOcrLanguages: (codes: string[]) => Promise<OcrLanguage[]>
+  onOcrDownloadProgress: (callback: (progress: OcrDownloadProgress) => void) => () => void
   getConfig: () => Promise<AppConfig>
   setShortcut: (shortcut: string) => Promise<boolean>
   setLocalShortcut: (name: 'new' | 'copy', shortcut: string) => Promise<boolean>

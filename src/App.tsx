@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import type { HistoryEntry } from './types'
+import type { HistoryEntry, OcrDownloadProgress, OcrLanguage } from './types'
 
 type ShortcutTarget = 'toggle' | 'new' | 'copy'
 
@@ -78,10 +78,18 @@ function App() {
   const [alwaysOnTop, setAlwaysOnTop] = useState(false)
   const [recordingTarget, setRecordingTarget] = useState<ShortcutTarget | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
+  const [ocrStatus, setOcrStatus] = useState<'idle' | 'reading' | 'error'>('idle')
   const [indentType, setIndentType] = useState<'space' | 'tab'>('space')
   const [indentSize, setIndentSize] = useState(2)
   const [showWhitespace, setShowWhitespace] = useState(false)
   const [showInMenuBar, setShowInMenuBar] = useState(false)
+  const [ocrLanguages, setOcrLanguages] = useState<OcrLanguage[]>([])
+  const [downloadingLanguage, setDownloadingLanguage] = useState<string | null>(null)
+  const [ocrDownloadProgress, setOcrDownloadProgress] = useState<OcrDownloadProgress | null>(null)
+  const [ocrLanguageError, setOcrLanguageError] = useState('')
+  const [ocrLanguageQuery, setOcrLanguageQuery] = useState('')
+  const [ocrLanguageDropdownOpen, setOcrLanguageDropdownOpen] = useState(false)
+  const [ocrLanguageToDownload, setOcrLanguageToDownload] = useState<OcrLanguage | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark'
   })
@@ -95,6 +103,7 @@ function App() {
 
   useEffect(() => {
     window.electronAPI.getHistory().then(setHistory)
+    window.electronAPI.getOcrLanguages().then(setOcrLanguages)
     window.electronAPI.getConfig().then((config) => {
       setToggleShortcut(config.shortcut)
       setToggleShortcutInput(config.shortcut)
@@ -108,6 +117,10 @@ function App() {
       setShowWhitespace(config.showWhitespace)
       setShowInMenuBar(config.showInMenuBar)
     })
+  }, [])
+
+  useEffect(() => {
+    return window.electronAPI.onOcrDownloadProgress(setOcrDownloadProgress)
   }, [])
 
   // Sync text to main process for copy shortcut
@@ -157,6 +170,42 @@ function App() {
     await window.electronAPI.copyToClipboard(text)
     setCopyFeedback(true)
     setTimeout(() => setCopyFeedback(false), 1500)
+  }, [text])
+
+  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageItem = Array.from(e.clipboardData.items).find((item) => item.type.startsWith('image/'))
+    if (!imageItem) return
+
+    e.preventDefault()
+    const image = imageItem.getAsFile()
+    if (!image) return
+
+    setOcrStatus('reading')
+    try {
+      const recognizedText = await window.electronAPI.recognizeImage(
+        new Uint8Array(await image.arrayBuffer()),
+      )
+      if (!recognizedText) {
+        setOcrStatus('error')
+        return
+      }
+
+      const textarea = textareaRef.current
+      const currentValue = textarea?.value ?? text
+      const start = textarea?.selectionStart ?? currentValue.length
+      const end = textarea?.selectionEnd ?? currentValue.length
+      const nextValue = currentValue.slice(0, start) + recognizedText + currentValue.slice(end)
+      setText(nextValue)
+      setOcrStatus('idle')
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus()
+        const nextPosition = start + recognizedText.length
+        textareaRef.current?.setSelectionRange(nextPosition, nextPosition)
+      })
+    } catch (error) {
+      console.error('OCR failed:', error)
+      setOcrStatus('error')
+    }
   }, [text])
 
   const handleSelectHistory = useCallback(async (entry: HistoryEntry) => {
@@ -260,6 +309,57 @@ function App() {
     setShowInMenuBar(applied)
   }, [])
 
+  const handleDownloadOcrLanguage = useCallback(async (code: string) => {
+    setDownloadingLanguage(code)
+    setOcrDownloadProgress({ code, receivedBytes: 0, totalBytes: null })
+    setOcrLanguageError('')
+    try {
+      const updated = await window.electronAPI.downloadOcrLanguage(code)
+      setOcrLanguages(updated)
+      setOcrLanguageQuery('')
+      setOcrLanguageToDownload(null)
+    } catch (error) {
+      console.error('Language download failed:', error)
+      setOcrLanguageError('Download failed. Check your internet connection and try again.')
+    } finally {
+      setDownloadingLanguage(null)
+      setOcrDownloadProgress(null)
+    }
+  }, [])
+
+  const handleRemoveOcrLanguage = useCallback(async (code: string) => {
+    setOcrLanguageError('')
+    try {
+      setOcrLanguages(await window.electronAPI.removeOcrLanguage(code))
+    } catch (error) {
+      console.error('Could not remove OCR language:', error)
+      setOcrLanguageError('Could not remove that language.')
+    }
+  }, [])
+
+  const handleOcrLanguageSelection = useCallback(async (code: string, checked: boolean) => {
+    const selected = ocrLanguages
+      .filter((language) => language.selected && language.code !== code)
+      .map((language) => language.code)
+    if (checked) selected.push(code)
+    if (!selected.length) {
+      setOcrLanguageError('At least one OCR language must remain selected.')
+      return
+    }
+    setOcrLanguageError('')
+    try {
+      setOcrLanguages(await window.electronAPI.setOcrLanguages(selected))
+    } catch (error) {
+      console.error('Could not select OCR languages:', error)
+      setOcrLanguageError('Could not update the selected languages.')
+    }
+  }, [ocrLanguages])
+
+  const formatFileSize = (bytes: number | null) => {
+    if (bytes === null) return ''
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
   const handleTabKey = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== 'Tab' || e.nativeEvent.isComposing) return
     e.preventDefault()
@@ -343,6 +443,15 @@ function App() {
     return line.length > len ? line.slice(0, len) + '...' : line
   }
 
+  const installedOcrLanguages = ocrLanguages.filter((language) => language.installed)
+  const availableOcrLanguages = ocrLanguages
+    .filter((language) => !language.installed)
+    .filter((language) => {
+      const query = ocrLanguageQuery.trim().toLocaleLowerCase()
+      return !query || language.name.toLocaleLowerCase().includes(query) || language.code.toLocaleLowerCase().includes(query)
+    })
+    .sort((a, b) => a.name.localeCompare(b.name))
+
   return (
     <div className="app" onKeyDown={handleKeyDown}>
       {/* Titlebar (drag region) */}
@@ -420,6 +529,16 @@ function App() {
               </svg>
             )}
           </button>
+          <button
+            className="btn btn-close"
+            onClick={() => window.electronAPI.closeWindow()}
+            title="Close to system tray"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -436,11 +555,17 @@ function App() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleTabKey}
+            onPaste={handlePaste}
             onScroll={syncOverlayScroll}
             placeholder="Type here..."
             spellCheck={false}
             autoFocus
           />
+          {ocrStatus !== 'idle' && (
+            <div className={`ocr-status ${ocrStatus === 'error' ? 'error' : ''}`} role="status">
+              {ocrStatus === 'reading' ? 'Reading screenshot…' : 'No text could be read from that image.'}
+            </div>
+          )}
           {showWhitespace && (
             <div className="editor-overlay" aria-hidden="true">
               <div
@@ -579,6 +704,94 @@ function App() {
                     <span className="switch-slider" />
                   </label>
                 </div>
+              </div>
+              <div className="settings-item">
+                <div className="settings-label">OCR Languages</div>
+                <div className="setting-description ocr-language-description">
+                  Select the languages used when you paste a screenshot. Installed languages work offline.
+                </div>
+                <div className="ocr-installed-title">Installed</div>
+                <div className="ocr-language-list">
+                  {installedOcrLanguages.map((language) => (
+                    <div className="ocr-language-row" key={language.code}>
+                      <label className="ocr-language-name">
+                        <input
+                          type="checkbox"
+                          checked={language.selected}
+                          onChange={(event) => handleOcrLanguageSelection(language.code, event.target.checked)}
+                        />
+                        <span>{language.name}</span>
+                      </label>
+                      <div className="ocr-language-actions">
+                        <span className="ocr-language-size">{formatFileSize(language.sizeBytes)}</span>
+                        {language.code !== 'eng' && (
+                          <button
+                            className="btn-language remove"
+                            onClick={() => handleRemoveOcrLanguage(language.code)}
+                            title={`Remove ${language.name}`}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="ocr-installed-title add-language-title">Add a language</div>
+                <div className="ocr-language-picker">
+                  <input
+                    className="ocr-language-search"
+                    type="text"
+                    value={ocrLanguageQuery}
+                    placeholder="Search languages…"
+                    role="combobox"
+                    aria-expanded={ocrLanguageDropdownOpen}
+                    aria-controls="ocr-language-options"
+                    onFocus={() => setOcrLanguageDropdownOpen(true)}
+                    onBlur={() => setOcrLanguageDropdownOpen(false)}
+                    onChange={(event) => {
+                      setOcrLanguageQuery(event.target.value)
+                      setOcrLanguageToDownload(null)
+                      setOcrLanguageDropdownOpen(true)
+                    }}
+                  />
+                  {ocrLanguageDropdownOpen && (
+                    <div className="ocr-language-dropdown" id="ocr-language-options" role="listbox">
+                      {availableOcrLanguages.length ? availableOcrLanguages.map((language) => (
+                        <button
+                          className="ocr-language-option"
+                          key={language.code}
+                          role="option"
+                          aria-selected={ocrLanguageToDownload?.code === language.code}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => {
+                            setOcrLanguageToDownload(language)
+                            setOcrLanguageQuery(`${language.name} (${language.code})`)
+                            setOcrLanguageDropdownOpen(false)
+                          }}
+                        >
+                          <span>{language.name}</span>
+                          <code>{language.code}</code>
+                        </button>
+                      )) : (
+                        <div className="ocr-language-empty">No matching languages</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <button
+                  className="btn-language btn-download-language"
+                  disabled={!ocrLanguageToDownload || downloadingLanguage !== null}
+                  onClick={() => ocrLanguageToDownload && handleDownloadOcrLanguage(ocrLanguageToDownload.code)}
+                >
+                  {downloadingLanguage ? (() => {
+                    const progress = ocrDownloadProgress?.totalBytes
+                      ? Math.round((ocrDownloadProgress.receivedBytes / ocrDownloadProgress.totalBytes) * 100)
+                      : null
+                    return progress === null ? 'Downloading…' : `Downloading… ${progress}%`
+                  })() : ocrLanguageToDownload ? `Download ${ocrLanguageToDownload.name}` : 'Choose a language'}
+                </button>
+                {ocrLanguageError && <div className="ocr-language-error">{ocrLanguageError}</div>}
               </div>
               {isMac && (
                 <div className="settings-item">

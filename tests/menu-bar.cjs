@@ -45,13 +45,16 @@ async function launch(platform = 'darwin', initialConfig = null) {
   const electron = {
     app, BrowserWindow: Window, Tray,
     Menu: { buildFromTemplate: value => value },
-    nativeImage: { createFromDataURL: () => ({ resize() { return this; }, setTemplateImage() {}, isEmpty() { return false; } }) },
+    nativeImage: {
+      createFromDataURL: () => ({ resize() { return this; }, setTemplateImage() {}, isEmpty() { return false; } }),
+      createFromPath: () => ({ isEmpty() { return false; } }),
+    },
     globalShortcut: { unregisterAll: () => shortcuts.clear(), register: (key, fn) => { shortcuts.set(key, fn); return true; } },
     ipcMain: { handle: (name, handler) => ipcHandlers.set(name, handler) }, clipboard: { writeText() {} }
   };
   const fsMock = {
-    existsSync: file => initialConfig !== null && file === '/test-data/config.json',
-    readFileSync: file => file === '/test-data/config.json' ? JSON.stringify(initialConfig) : '',
+    existsSync: file => initialConfig !== null && file.replaceAll('\\', '/').endsWith('/config.json'),
+    readFileSync: file => file.replaceAll('\\', '/').endsWith('/config.json') ? JSON.stringify(initialConfig) : '',
     writeFileSync: (file, data) => writes.push({ file, data }),
   };
   const source = fs.readFileSync(path.join(__dirname, '../electron/main.ts'), 'utf8');
@@ -60,7 +63,7 @@ async function launch(platform = 'darwin', initialConfig = null) {
     require: name => name === 'electron' ? electron : name === 'node:fs' ? fsMock : require(name),
     exports: {}, __dirname: '/app/dist-electron', process: { platform, env: {} }, console
   });
-  await Promise.resolve();
+  await new Promise(resolve => setImmediate(resolve));
   return { app, windows, trays, shortcuts, ipcHandlers, writes };
 }
 
@@ -116,12 +119,30 @@ test('menu can toggle the editor and quit the background app', async () => {
   windows[0].close();
   assert.equal(windows[0].destroyed, true, 'Quit must not be intercepted as hide');
 });
-test('non-Mac platforms retain their existing close behavior', async () => {
+test('Windows close hides the editor in the tray and double-click restores it', async () => {
   const { app, trays, windows } = await launch('win32', { showInMenuBar: true });
-  assert.equal(trays.length, 0);
+  assert.equal(trays.length, 1);
   assert.ok(!app.dockHidden);
   windows[0].close();
+  assert.ok(!windows[0].destroyed);
+  assert.equal(windows[0].visible, false);
+  trays[0].emit('double-click');
+  assert.equal(windows[0].visible, true);
+});
+
+test('Windows tray menu can quit the app completely', async () => {
+  const { app, trays, windows } = await launch('win32');
+  trays[0].menu.find(item => item.label === 'Quit One-Time Editor').click();
+  assert.equal(app.quitCalled, true);
+  windows[0].close();
   assert.equal(windows[0].destroyed, true);
+});
+
+test('close-window IPC hides the Windows editor', async () => {
+  const { windows, ipcHandlers } = await launch('win32');
+  await ipcHandlers.get('close-window')();
+  assert.equal(windows[0].visible, false);
+  assert.ok(!windows[0].destroyed);
 });
 
 test('Mac shortcut hides the application to return focus to the previous app', async () => {

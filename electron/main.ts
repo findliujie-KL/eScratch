@@ -1,6 +1,7 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, clipboard, Tray, Menu, nativeImage } from 'electron'
+import { app, BrowserWindow, globalShortcut, ipcMain, clipboard, Tray, Menu, nativeImage, net } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
+import { createWorker } from 'tesseract.js'
 
 process.env.DIST = path.join(__dirname, '../dist')
 
@@ -9,6 +10,7 @@ let tray: Tray | null = null
 let isQuitting = false
 let menuBarEnabled = false
 let currentText = ''
+let ocrWorker: Awaited<ReturnType<typeof createWorker>> | null = null
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
 // Config and history file paths
@@ -21,6 +23,130 @@ const defaultCopyShortcut = `${defaultMod}+Shift+C`
 
 const shortcutValidator = /^(Command|Control|Alt|Shift|Meta|Super)(\+(Command|Control|Alt|Shift|Meta|Super))*\+[A-Za-z0-9]$/
 
+const OCR_LANGUAGES = [
+  { code: 'afr', name: 'Afrikaans' },
+  { code: 'amh', name: 'Amharic' },
+  { code: 'ara', name: 'Arabic' },
+  { code: 'asm', name: 'Assamese' },
+  { code: 'aze', name: 'Azerbaijani' },
+  { code: 'aze_cyrl', name: 'Azerbaijani (Cyrillic)' },
+  { code: 'bel', name: 'Belarusian' },
+  { code: 'ben', name: 'Bengali' },
+  { code: 'bod', name: 'Tibetan' },
+  { code: 'bos', name: 'Bosnian' },
+  { code: 'bre', name: 'Breton' },
+  { code: 'bul', name: 'Bulgarian' },
+  { code: 'cat', name: 'Catalan / Valencian' },
+  { code: 'ceb', name: 'Cebuano' },
+  { code: 'ces', name: 'Czech' },
+  { code: 'eng', name: 'English' },
+  { code: 'chi_sim', name: 'Chinese (Simplified)' },
+  { code: 'chi_tra', name: 'Chinese (Traditional)' },
+  { code: 'chr', name: 'Cherokee' },
+  { code: 'cos', name: 'Corsican' },
+  { code: 'cym', name: 'Welsh' },
+  { code: 'dan', name: 'Danish' },
+  { code: 'deu', name: 'German' },
+  { code: 'frk', name: 'German (Fraktur)' },
+  { code: 'div', name: 'Dhivehi' },
+  { code: 'dzo', name: 'Dzongkha' },
+  { code: 'ell', name: 'Greek (Modern)' },
+  { code: 'enm', name: 'English (Middle)' },
+  { code: 'epo', name: 'Esperanto' },
+  { code: 'est', name: 'Estonian' },
+  { code: 'eus', name: 'Basque' },
+  { code: 'fao', name: 'Faroese' },
+  { code: 'fas', name: 'Persian' },
+  { code: 'fil', name: 'Filipino' },
+  { code: 'fin', name: 'Finnish' },
+  { code: 'fra', name: 'French' },
+  { code: 'frm', name: 'French (Middle)' },
+  { code: 'fry', name: 'West Frisian' },
+  { code: 'gla', name: 'Scottish Gaelic' },
+  { code: 'gle', name: 'Irish' },
+  { code: 'glg', name: 'Galician' },
+  { code: 'grc', name: 'Greek (Ancient)' },
+  { code: 'guj', name: 'Gujarati' },
+  { code: 'hat', name: 'Haitian Creole' },
+  { code: 'heb', name: 'Hebrew' },
+  { code: 'hin', name: 'Hindi' },
+  { code: 'hrv', name: 'Croatian' },
+  { code: 'hun', name: 'Hungarian' },
+  { code: 'hye', name: 'Armenian' },
+  { code: 'iku', name: 'Inuktitut' },
+  { code: 'ind', name: 'Indonesian' },
+  { code: 'isl', name: 'Icelandic' },
+  { code: 'ita', name: 'Italian' },
+  { code: 'ita_old', name: 'Italian (Old)' },
+  { code: 'jav', name: 'Javanese' },
+  { code: 'jpn', name: 'Japanese' },
+  { code: 'jpn_vert', name: 'Japanese (Vertical)' },
+  { code: 'kan', name: 'Kannada' },
+  { code: 'kat', name: 'Georgian' },
+  { code: 'kat_old', name: 'Georgian (Old)' },
+  { code: 'kaz', name: 'Kazakh' },
+  { code: 'khm', name: 'Central Khmer' },
+  { code: 'kir', name: 'Kyrgyz' },
+  { code: 'kmr', name: 'Kurdish (Kurmanji)' },
+  { code: 'kor', name: 'Korean' },
+  { code: 'kor_vert', name: 'Korean (Vertical)' },
+  { code: 'lao', name: 'Lao' },
+  { code: 'lat', name: 'Latin' },
+  { code: 'lav', name: 'Latvian' },
+  { code: 'lit', name: 'Lithuanian' },
+  { code: 'ltz', name: 'Luxembourgish' },
+  { code: 'mal', name: 'Malayalam' },
+  { code: 'mar', name: 'Marathi' },
+  { code: 'mkd', name: 'Macedonian' },
+  { code: 'mlt', name: 'Maltese' },
+  { code: 'mon', name: 'Mongolian' },
+  { code: 'mri', name: 'Maori' },
+  { code: 'msa', name: 'Malay' },
+  { code: 'mya', name: 'Burmese' },
+  { code: 'nep', name: 'Nepali' },
+  { code: 'nld', name: 'Dutch / Flemish' },
+  { code: 'nor', name: 'Norwegian' },
+  { code: 'oci', name: 'Occitan' },
+  { code: 'ori', name: 'Odia' },
+  { code: 'pan', name: 'Punjabi' },
+  { code: 'pol', name: 'Polish' },
+  { code: 'por', name: 'Portuguese' },
+  { code: 'pus', name: 'Pashto' },
+  { code: 'que', name: 'Quechua' },
+  { code: 'ron', name: 'Romanian' },
+  { code: 'rus', name: 'Russian' },
+  { code: 'san', name: 'Sanskrit' },
+  { code: 'sin', name: 'Sinhala' },
+  { code: 'slk', name: 'Slovak' },
+  { code: 'slv', name: 'Slovenian' },
+  { code: 'snd', name: 'Sindhi' },
+  { code: 'spa', name: 'Spanish' },
+  { code: 'spa_old', name: 'Spanish (Old)' },
+  { code: 'sqi', name: 'Albanian' },
+  { code: 'srp', name: 'Serbian' },
+  { code: 'srp_latn', name: 'Serbian (Latin)' },
+  { code: 'sun', name: 'Sundanese' },
+  { code: 'swa', name: 'Swahili' },
+  { code: 'swe', name: 'Swedish' },
+  { code: 'syr', name: 'Syriac' },
+  { code: 'tam', name: 'Tamil' },
+  { code: 'tat', name: 'Tatar' },
+  { code: 'tel', name: 'Telugu' },
+  { code: 'tgk', name: 'Tajik' },
+  { code: 'tha', name: 'Thai' },
+  { code: 'tir', name: 'Tigrinya' },
+  { code: 'ton', name: 'Tonga' },
+  { code: 'tur', name: 'Turkish' },
+  { code: 'uig', name: 'Uyghur' },
+  { code: 'ukr', name: 'Ukrainian' },
+  { code: 'urd', name: 'Urdu' },
+  { code: 'uzb', name: 'Uzbek' },
+  { code: 'uzb_cyrl', name: 'Uzbek (Cyrillic)' },
+  { code: 'vie', name: 'Vietnamese' },
+  { code: 'yid', name: 'Yiddish' },
+  { code: 'yor', name: 'Yoruba' },
+] as const
+
 interface Config {
   shortcut: string
   newShortcut: string
@@ -30,6 +156,7 @@ interface Config {
   indentSize: number
   showWhitespace: boolean
   showInMenuBar: boolean
+  ocrLanguages: string[]
 }
 
 interface HistoryEntry {
@@ -55,6 +182,9 @@ function loadConfig(): Config {
         indentSize: [2, 4, 6, 8].includes(Number(saved.indentSize)) ? Number(saved.indentSize) : 2,
         showWhitespace: saved.showWhitespace === true,
         showInMenuBar: saved.showInMenuBar === true,
+        ocrLanguages: Array.isArray(saved.ocrLanguages) && saved.ocrLanguages.length
+          ? saved.ocrLanguages.filter((code: unknown) => typeof code === 'string')
+          : ['eng'],
       }
     }
   } catch {}
@@ -67,6 +197,7 @@ function loadConfig(): Config {
     indentSize: 2,
     showWhitespace: false,
     showInMenuBar: false,
+    ocrLanguages: ['eng'],
   }
 }
 
@@ -85,6 +216,44 @@ function loadHistory(): HistoryEntry[] {
 
 function saveHistory(history: HistoryEntry[]) {
   fs.writeFileSync(historyPath, JSON.stringify(history, null, 2))
+}
+
+function getOcrLanguageDir() {
+  return path.join(app.getPath('userData'), 'ocr-languages')
+}
+
+function ensureBundledEnglishAvailable() {
+  const languageDir = getOcrLanguageDir()
+  fs.mkdirSync(languageDir, { recursive: true })
+  const destination = path.join(languageDir, 'eng.traineddata.gz')
+  if (!fs.existsSync(destination)) {
+    const appPath = app.getAppPath()
+    const readableAppPath = app.isPackaged ? `${appPath}.unpacked` : appPath
+    const source = path.join(readableAppPath, 'node_modules', '@tesseract.js-data', 'eng', '4.0.0_best_int', 'eng.traineddata.gz')
+    fs.copyFileSync(source, destination)
+  }
+  return languageDir
+}
+
+function getOcrLanguageState() {
+  const languageDir = ensureBundledEnglishAvailable()
+  const selected = new Set(loadConfig().ocrLanguages)
+  return OCR_LANGUAGES.map((language) => {
+    const filePath = path.join(languageDir, `${language.code}.traineddata.gz`)
+    const installed = fs.existsSync(filePath)
+    return {
+      ...language,
+      installed,
+      selected: installed && selected.has(language.code),
+      sizeBytes: installed ? fs.statSync(filePath).size : null,
+    }
+  })
+}
+
+async function resetOcrWorker() {
+  const worker = ocrWorker
+  ocrWorker = null
+  await worker?.terminate()
 }
 
 function createWindow(config: Config) {
@@ -111,7 +280,7 @@ function createWindow(config: Config) {
 
 
   win.on('close', (event) => {
-    if (menuBarEnabled && !isQuitting) {
+    if (!isQuitting && (process.platform === 'win32' || menuBarEnabled)) {
       event.preventDefault()
       copyText()
       win?.hide()
@@ -130,6 +299,16 @@ function createWindow(config: Config) {
   } else {
     win.loadFile(path.join(process.env.DIST!, 'index.html'))
   }
+}
+
+function showWindow() {
+  if (!win) {
+    createWindow(loadConfig())
+    return
+  }
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
 }
 
 function toggleWindow() {
@@ -151,8 +330,7 @@ function toggleWindow() {
       win.hide()
     }
   } else {
-    win.show()
-    win.focus()
+    showWindow()
   }
 }
 
@@ -186,26 +364,38 @@ function registerShortcut(config: Config) {
   }
 }
 
-function createMenuBar() {
+function createTray() {
   if (tray) return
-  // A monochrome template lets macOS adapt the icon to light/dark menu bars.
-  const icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACQAAAAkCAYAAADhAJiYAAAAVUlEQVR4nO2TyQkAMAzDsv/S7QiF1iZHJchX6OFEAHhZppsXpIIgu4+gG8HLR/0RlOojyC5Q+1qMulxQqo8gu0DtazHqckGpPoLsArWvbJD65gQBnNj8Hv8BB9uGHwAAAABJRU5ErkJggg==').resize({ width: 18, height: 18 })
-  icon.setTemplateImage(true)
+  let icon
+  if (process.platform === 'darwin') {
+    // A monochrome template lets macOS adapt the icon to light/dark menu bars.
+    icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACQAAAAkCAYAAADhAJiYAAAAVUlEQVR4nO2TyQkAMAzDsv/S7QiF1iZHJchX6OFEAHhZppsXpIIgu4+gG8HLR/0RlOojyC5Q+1qMulxQqo8gu0DtazHqckGpPoLsArWvbJD65gQBnNj8Hv8BB9uGHwAAAABJRU5ErkJggg==').resize({ width: 18, height: 18 })
+    icon.setTemplateImage(true)
+  } else {
+    const iconPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'icon.ico')
+      : path.join(__dirname, '../build/icon.ico')
+    icon = nativeImage.createFromPath(iconPath)
+  }
   tray = new Tray(icon)
   tray.setToolTip('One-Time Editor')
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Show / Hide Editor', click: toggleWindow },
     { type: 'separator' },
-    { label: 'Quit One-Time Editor', click: () => app.quit() },
+    { label: 'Quit One-Time Editor', click: () => {
+      isQuitting = true
+      app.quit()
+    } },
   ]))
-  app.dock.hide()
+  tray.on('double-click', showWindow)
+  if (process.platform === 'darwin') app.dock.hide()
 }
 
 function applyMenuBarPreference(enabled: boolean) {
   menuBarEnabled = process.platform === 'darwin' && enabled
   if (process.platform !== 'darwin') return
   if (menuBarEnabled) {
-    createMenuBar()
+    createTray()
   } else {
     tray?.destroy()
     tray = null
@@ -220,6 +410,7 @@ app.on('before-quit', () => {
 app.whenReady().then(() => {
   const config = loadConfig()
   applyMenuBarPreference(config.showInMenuBar)
+  if (process.platform === 'win32') createTray()
   createWindow(config)
   registerShortcut(config)
 
@@ -258,6 +449,96 @@ app.whenReady().then(() => {
 
   ipcMain.handle('sync-text', (_event, text: string) => {
     currentText = text
+  })
+
+  ipcMain.handle('close-window', () => {
+    win?.close()
+  })
+
+  ipcMain.handle('recognize-image', async (_event, imageBytes: Uint8Array) => {
+    if (!imageBytes?.byteLength) throw new Error('The pasted image is empty.')
+    if (!ocrWorker) {
+      const appPath = app.getAppPath()
+      const readableAppPath = app.isPackaged ? `${appPath}.unpacked` : appPath
+      const languageDir = ensureBundledEnglishAvailable()
+      const installedCodes = new Set(getOcrLanguageState().filter((language) => language.installed).map((language) => language.code))
+      const selectedLanguages = loadConfig().ocrLanguages.filter((code) => installedCodes.has(code as typeof OCR_LANGUAGES[number]['code']))
+      const languages = selectedLanguages.length ? selectedLanguages : ['eng']
+      ocrWorker = await createWorker(languages, 1, {
+        langPath: languageDir,
+        workerPath: path.join(readableAppPath, 'node_modules', 'tesseract.js', 'src', 'worker-script', 'node', 'index.js'),
+        corePath: path.join(readableAppPath, 'node_modules', 'tesseract.js-core'),
+        cachePath: path.join(app.getPath('userData'), 'ocr-cache'),
+      })
+    }
+    const result = await ocrWorker.recognize(Buffer.from(imageBytes))
+    return result.data.text.trim()
+  })
+
+  ipcMain.handle('get-ocr-languages', () => getOcrLanguageState())
+
+  ipcMain.handle('download-ocr-language', async (event, code: string) => {
+    const language = OCR_LANGUAGES.find((item) => item.code === code)
+    if (!language) throw new Error('Unsupported OCR language.')
+    if (code === 'eng') return getOcrLanguageState()
+
+    const languageDir = ensureBundledEnglishAvailable()
+    const destination = path.join(languageDir, `${code}.traineddata.gz`)
+    const temporary = `${destination}.download`
+    const url = `https://cdn.jsdelivr.net/npm/@tesseract.js-data/${code}@1.0.0/4.0.0_best_int/${code}.traineddata.gz`
+
+    try {
+      const response = await net.fetch(url)
+      if (!response.ok || !response.body) throw new Error(`Download failed (${response.status}).`)
+      const totalBytes = Number(response.headers.get('content-length')) || null
+      const reader = response.body.getReader()
+      const chunks: Uint8Array[] = []
+      let receivedBytes = 0
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value)
+        receivedBytes += value.byteLength
+        event.sender.send('ocr-download-progress', { code, receivedBytes, totalBytes })
+      }
+      const data = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))
+      if (data.length < 2 || data[0] !== 0x1f || data[1] !== 0x8b) {
+        throw new Error('The downloaded language file is invalid.')
+      }
+      fs.writeFileSync(temporary, data)
+      fs.renameSync(temporary, destination)
+      event.sender.send('ocr-download-progress', { code, receivedBytes: data.length, totalBytes: data.length })
+      return getOcrLanguageState()
+    } catch (error) {
+      if (fs.existsSync(temporary)) fs.unlinkSync(temporary)
+      throw error
+    }
+  })
+
+  ipcMain.handle('remove-ocr-language', async (_event, code: string) => {
+    if (code === 'eng') throw new Error('English is included with the app and cannot be removed.')
+    if (!OCR_LANGUAGES.some((item) => item.code === code)) throw new Error('Unsupported OCR language.')
+    await resetOcrWorker()
+    const filePath = path.join(ensureBundledEnglishAvailable(), `${code}.traineddata.gz`)
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+    const config = loadConfig()
+    config.ocrLanguages = config.ocrLanguages.filter((languageCode) => languageCode !== code)
+    if (!config.ocrLanguages.length) config.ocrLanguages = ['eng']
+    saveConfig(config)
+    return getOcrLanguageState()
+  })
+
+  ipcMain.handle('set-ocr-languages', async (_event, codes: string[]) => {
+    const installedCodes = new Set(getOcrLanguageState().filter((language) => language.installed).map((language) => language.code))
+    const selected = Array.isArray(codes)
+      ? [...new Set(codes)].filter((code) => installedCodes.has(code as typeof OCR_LANGUAGES[number]['code']))
+      : []
+    if (!selected.length) throw new Error('Select at least one installed OCR language.')
+    const config = loadConfig()
+    config.ocrLanguages = selected
+    saveConfig(config)
+    await resetOcrWorker()
+    return getOcrLanguageState()
   })
 
   ipcMain.handle('get-config', () => {
@@ -318,7 +599,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  if (process.platform !== 'darwin' && process.platform !== 'win32') {
     app.quit()
   }
 })
@@ -332,9 +613,11 @@ app.on('activate', () => {
   }
 })
 
-app.on('will-quit', () => {
+app.on('will-quit', async () => {
   saveCurrentTextToHistory()
   globalShortcut.unregisterAll()
+  await ocrWorker?.terminate()
+  ocrWorker = null
   tray?.destroy()
   tray = null
 })

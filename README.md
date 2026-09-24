@@ -54,6 +54,9 @@ On macOS, you can choose whether the app lives in the menu bar or in the Dock. E
 - **Dark / Light theme** — Toggle between dark and light mode
 - **Configurable shortcut** — Change the global shortcut in settings by pressing your desired key combination
 - **Show whitespace** — Optionally reveal spaces, tabs, and full-width spaces as visible markers
+- **Screenshot OCR** — Paste an image to insert its recognized text directly into the editor
+- **Downloadable OCR languages** — Install and select additional recognition languages from settings for offline use
+- **Windows tray mode** — Closing the window keeps the app in the system tray; double-click the tray icon to restore it
 
 ## Development
 
