@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getHistory: () => ipcRenderer.invoke('get-history'),
   saveToHistory: (text: string) => ipcRenderer.invoke('save-to-history', text),
   deleteHistoryEntry: (id: string) => ipcRenderer.invoke('delete-history-entry', id),
+  clearHistory: () => ipcRenderer.invoke('clear-history'),
+  setHistoryLimit: (limit: number) => ipcRenderer.invoke('set-history-limit', limit),
   copyToClipboard: (text: string) => ipcRenderer.invoke('copy-to-clipboard', text),
   syncText: (text: string) => ipcRenderer.invoke('sync-text', text),
   closeWindow: () => ipcRenderer.invoke('close-window'),

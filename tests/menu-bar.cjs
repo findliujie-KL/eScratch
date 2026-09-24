@@ -10,9 +10,13 @@ const ts = require('typescript');
 // opening windows, touching the clipboard, or changing the user's notes.
 async function launch(platform = 'darwin', initialConfig = null) {
   const windows = [], trays = [], shortcuts = new Map(), ipcHandlers = new Map(), writes = [];
+  const storedFiles = new Map();
+  const normalizePath = file => file.replaceAll('\\', '/');
+  if (initialConfig !== null) storedFiles.set('/test-data/config.json', JSON.stringify(initialConfig));
   const app = new EventEmitter();
   Object.assign(app, {
     getPath: () => '/test-data', whenReady: () => Promise.resolve(),
+    setName(name) { this.name = name; },
     dock: {
       hidden: false,
       hide() { this.hidden = true; app.dockHidden = true; },
@@ -53,9 +57,12 @@ async function launch(platform = 'darwin', initialConfig = null) {
     ipcMain: { handle: (name, handler) => ipcHandlers.set(name, handler) }, clipboard: { writeText() {} }
   };
   const fsMock = {
-    existsSync: file => initialConfig !== null && file.replaceAll('\\', '/').endsWith('/config.json'),
-    readFileSync: file => file.replaceAll('\\', '/').endsWith('/config.json') ? JSON.stringify(initialConfig) : '',
-    writeFileSync: (file, data) => writes.push({ file, data }),
+    existsSync: file => storedFiles.has(normalizePath(file)),
+    readFileSync: file => storedFiles.get(normalizePath(file)) || '',
+    writeFileSync: (file, data) => {
+      storedFiles.set(normalizePath(file), data);
+      writes.push({ file, data });
+    },
   };
   const source = fs.readFileSync(path.join(__dirname, '../electron/main.ts'), 'utf8');
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
@@ -76,7 +83,7 @@ test('Mac menu-bar mode removes the Dock icon and provides a menu-bar entry', as
   const { app, trays } = await launch('darwin', { showInMenuBar: true });
   assert.equal(trays.length, 1);
   assert.equal(app.dockHidden, true);
-  assert.ok(trays[0].menu.some(item => item.label === 'Quit One-Time Editor'));
+  assert.ok(trays[0].menu.some(item => item.label === 'Quit eScratch'));
 });
 test('closing a menu-bar Mac window preserves it and Control+J brings it back', async () => {
   const { windows, shortcuts } = await launch('darwin', { showInMenuBar: true });
@@ -114,7 +121,7 @@ test('menu can toggle the editor and quit the background app', async () => {
   assert.equal(windows[0].visible, false);
   toggle.click();
   assert.equal(windows[0].visible, true);
-  trays[0].menu.find(item => item.label === 'Quit One-Time Editor').click();
+  trays[0].menu.find(item => item.label === 'Quit eScratch').click();
   assert.equal(app.quitCalled, true);
   windows[0].close();
   assert.equal(windows[0].destroyed, true, 'Quit must not be intercepted as hide');
@@ -132,7 +139,7 @@ test('Windows close hides the editor in the tray and double-click restores it', 
 
 test('Windows tray menu can quit the app completely', async () => {
   const { app, trays, windows } = await launch('win32');
-  trays[0].menu.find(item => item.label === 'Quit One-Time Editor').click();
+  trays[0].menu.find(item => item.label === 'Quit eScratch').click();
   assert.equal(app.quitCalled, true);
   windows[0].close();
   assert.equal(windows[0].destroyed, true);
@@ -143,6 +150,22 @@ test('close-window IPC hides the Windows editor', async () => {
   await ipcHandlers.get('close-window')();
   assert.equal(windows[0].visible, false);
   assert.ok(!windows[0].destroyed);
+});
+
+test('history defaults to 10 entries, can be resized, and can be cleared', async () => {
+  const { ipcHandlers } = await launch('win32');
+  assert.equal((await ipcHandlers.get('get-config')()).historyLimit, 10);
+  let history = [];
+  for (let index = 0; index < 12; index += 1) {
+    history = await ipcHandlers.get('save-to-history')(null, `entry ${index}`);
+  }
+  assert.equal(history.length, 10);
+  assert.equal(history[0].text, 'entry 11');
+  const resized = await ipcHandlers.get('set-history-limit')(null, 3);
+  assert.equal(resized.historyLimit, 3);
+  assert.equal(resized.history.length, 3);
+  assert.equal((await ipcHandlers.get('clear-history')()).length, 0);
+  assert.equal((await ipcHandlers.get('get-history')()).length, 0);
 });
 
 test('Mac shortcut hides the application to return focus to the previous app', async () => {

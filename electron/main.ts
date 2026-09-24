@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import { createWorker } from 'tesseract.js'
 
 process.env.DIST = path.join(__dirname, '../dist')
+app.setName('eScratch')
 
 let win: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -12,6 +13,23 @@ let menuBarEnabled = false
 let currentText = ''
 let ocrWorker: Awaited<ReturnType<typeof createWorker>> | null = null
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
+
+// Preserve settings and OCR downloads created under the original app name.
+const legacyUserDataPath = path.join(app.getPath('appData'), 'one-time-editor')
+const currentUserDataPath = app.getPath('userData')
+if (legacyUserDataPath !== currentUserDataPath && fs.existsSync(legacyUserDataPath)) {
+  fs.mkdirSync(currentUserDataPath, { recursive: true })
+  for (const name of ['config.json', 'history.json']) {
+    const source = path.join(legacyUserDataPath, name)
+    const destination = path.join(currentUserDataPath, name)
+    if (fs.existsSync(source) && !fs.existsSync(destination)) fs.copyFileSync(source, destination)
+  }
+  const legacyLanguages = path.join(legacyUserDataPath, 'ocr-languages')
+  const currentLanguages = path.join(currentUserDataPath, 'ocr-languages')
+  if (fs.existsSync(legacyLanguages) && !fs.existsSync(currentLanguages)) {
+    fs.cpSync(legacyLanguages, currentLanguages, { recursive: true })
+  }
+}
 
 // Config and history file paths
 const configPath = path.join(app.getPath('userData'), 'config.json')
@@ -157,6 +175,7 @@ interface Config {
   showWhitespace: boolean
   showInMenuBar: boolean
   ocrLanguages: string[]
+  historyLimit: number
 }
 
 interface HistoryEntry {
@@ -185,6 +204,9 @@ function loadConfig(): Config {
         ocrLanguages: Array.isArray(saved.ocrLanguages) && saved.ocrLanguages.length
           ? saved.ocrLanguages.filter((code: unknown) => typeof code === 'string')
           : ['eng'],
+        historyLimit: Number.isInteger(saved.historyLimit) && saved.historyLimit >= 1 && saved.historyLimit <= 1000
+          ? saved.historyLimit
+          : 10,
       }
     }
   } catch {}
@@ -198,6 +220,7 @@ function loadConfig(): Config {
     showWhitespace: false,
     showInMenuBar: false,
     ocrLanguages: ['eng'],
+    historyLimit: 10,
   }
 }
 
@@ -216,6 +239,17 @@ function loadHistory(): HistoryEntry[] {
 
 function saveHistory(history: HistoryEntry[]) {
   fs.writeFileSync(historyPath, JSON.stringify(history, null, 2))
+}
+
+function applyHistoryLimit(history: HistoryEntry[]) {
+  return history.slice(0, loadConfig().historyLimit)
+}
+
+function loadLimitedHistory() {
+  const history = loadHistory()
+  const limitedHistory = applyHistoryLimit(history)
+  if (limitedHistory.length !== history.length) saveHistory(limitedHistory)
+  return limitedHistory
 }
 
 function getOcrLanguageDir() {
@@ -349,10 +383,7 @@ function saveCurrentTextToHistory() {
     createdAt: new Date().toISOString(),
   }
   history.unshift(entry)
-  if (history.length > 100) {
-    history.splice(100)
-  }
-  saveHistory(history)
+  saveHistory(applyHistoryLimit(history))
 }
 
 function registerShortcut(config: Config) {
@@ -378,11 +409,11 @@ function createTray() {
     icon = nativeImage.createFromPath(iconPath)
   }
   tray = new Tray(icon)
-  tray.setToolTip('One-Time Editor')
+  tray.setToolTip('eScratch')
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Show / Hide Editor', click: toggleWindow },
     { type: 'separator' },
-    { label: 'Quit One-Time Editor', click: () => {
+    { label: 'Quit eScratch', click: () => {
       isQuitting = true
       app.quit()
     } },
@@ -416,7 +447,7 @@ app.whenReady().then(() => {
 
   // IPC handlers
   ipcMain.handle('get-history', () => {
-    return loadHistory()
+    return loadLimitedHistory()
   })
 
   ipcMain.handle('save-to-history', (_event, text: string) => {
@@ -428,12 +459,9 @@ app.whenReady().then(() => {
       createdAt: new Date().toISOString(),
     }
     history.unshift(entry)
-    // Keep up to 100 entries
-    if (history.length > 100) {
-      history.splice(100)
-    }
-    saveHistory(history)
-    return history
+    const limitedHistory = applyHistoryLimit(history)
+    saveHistory(limitedHistory)
+    return limitedHistory
   })
 
   ipcMain.handle('delete-history-entry', (_event, id: string) => {
@@ -441,6 +469,21 @@ app.whenReady().then(() => {
     history = history.filter(h => h.id !== id)
     saveHistory(history)
     return history
+  })
+
+  ipcMain.handle('clear-history', () => {
+    saveHistory([])
+    return []
+  })
+
+  ipcMain.handle('set-history-limit', (_event, requestedLimit: number) => {
+    const historyLimit = Math.max(1, Math.min(1000, Math.round(Number(requestedLimit) || 10)))
+    const config = loadConfig()
+    config.historyLimit = historyLimit
+    saveConfig(config)
+    const history = loadHistory().slice(0, historyLimit)
+    saveHistory(history)
+    return { historyLimit, history }
   })
 
   ipcMain.handle('copy-to-clipboard', (_event, text: string) => {

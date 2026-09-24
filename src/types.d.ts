@@ -14,6 +14,7 @@ export interface AppConfig {
   showWhitespace: boolean
   showInMenuBar: boolean
   ocrLanguages: string[]
+  historyLimit: number
 }
 
 export interface OcrLanguage {
@@ -34,6 +35,8 @@ export interface ElectronAPI {
   getHistory: () => Promise<HistoryEntry[]>
   saveToHistory: (text: string) => Promise<HistoryEntry[]>
   deleteHistoryEntry: (id: string) => Promise<HistoryEntry[]>
+  clearHistory: () => Promise<HistoryEntry[]>
+  setHistoryLimit: (limit: number) => Promise<{ historyLimit: number; history: HistoryEntry[] }>
   copyToClipboard: (text: string) => Promise<void>
   syncText: (text: string) => Promise<void>
   closeWindow: () => Promise<void>

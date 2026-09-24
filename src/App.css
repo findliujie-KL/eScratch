@@ -356,6 +356,28 @@ body {
   line-height: 1.5;
 }
 
+.history-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.history-clear-btn {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.history-clear-btn:hover,
+.history-clear-btn.armed {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 .ocr-language-description {
   margin-bottom: 10px;
 }
@@ -579,6 +601,23 @@ body {
 }
 
 .settings-select:focus {
+  border-color: var(--accent);
+}
+
+.history-limit-input {
+  width: 72px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 13px;
+  text-align: right;
+}
+
+.history-limit-input:focus {
   border-color: var(--accent);
 }
 

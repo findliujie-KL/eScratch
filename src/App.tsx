@@ -67,6 +67,8 @@ function splitWhitespace(value: string): WhitespaceToken[] {
 function App() {
   const [text, setText] = useState('')
   const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [historyLimitInput, setHistoryLimitInput] = useState('10')
+  const [clearHistoryArmed, setClearHistoryArmed] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [toggleShortcut, setToggleShortcut] = useState('')
@@ -116,6 +118,7 @@ function App() {
       setIndentSize(config.indentSize)
       setShowWhitespace(config.showWhitespace)
       setShowInMenuBar(config.showInMenuBar)
+      setHistoryLimitInput(String(config.historyLimit))
     })
   }, [])
 
@@ -309,6 +312,23 @@ function App() {
     setShowInMenuBar(applied)
   }, [])
 
+  const handleClearHistory = useCallback(async () => {
+    if (!clearHistoryArmed) {
+      setClearHistoryArmed(true)
+      setTimeout(() => setClearHistoryArmed(false), 3000)
+      return
+    }
+    setHistory(await window.electronAPI.clearHistory())
+    setClearHistoryArmed(false)
+  }, [clearHistoryArmed])
+
+  const saveHistoryLimit = useCallback(async () => {
+    const requestedLimit = Number(historyLimitInput)
+    const result = await window.electronAPI.setHistoryLimit(requestedLimit)
+    setHistoryLimitInput(String(result.historyLimit))
+    setHistory(result.history)
+  }, [historyLimitInput])
+
   const handleDownloadOcrLanguage = useCallback(async (code: string) => {
     setDownloadingLanguage(code)
     setOcrDownloadProgress({ code, receivedBytes: 0, totalBytes: null })
@@ -456,7 +476,7 @@ function App() {
     <div className="app" onKeyDown={handleKeyDown}>
       {/* Titlebar (drag region) */}
       <div className="titlebar">
-        <span className="titlebar-text">One-Time Editor</span>
+        <span className="titlebar-text">eScratch</span>
         <div className="titlebar-buttons">
           <button
             className="btn btn-new"
@@ -598,8 +618,16 @@ function App() {
         {/* History panel */}
         {showHistory && (
           <div className="panel history-panel">
-            <div className="panel-header">
+            <div className="panel-header history-panel-header">
               <h3>History</h3>
+              {history.length > 0 && (
+                <button
+                  className={`history-clear-btn ${clearHistoryArmed ? 'armed' : ''}`}
+                  onClick={handleClearHistory}
+                >
+                  {clearHistoryArmed ? 'Confirm clear' : 'Clear all'}
+                </button>
+              )}
             </div>
             <div className="panel-content">
               {history.length === 0 ? (
@@ -703,6 +731,24 @@ function App() {
                     />
                     <span className="switch-slider" />
                   </label>
+                </div>
+              </div>
+              <div className="settings-item">
+                <div className="settings-label">History Limit</div>
+                <div className="settings-row">
+                  <span className="setting-description">Number of previous entries to remember.</span>
+                  <input
+                    className="history-limit-input"
+                    type="number"
+                    min="1"
+                    max="1000"
+                    value={historyLimitInput}
+                    onChange={(event) => setHistoryLimitInput(event.target.value)}
+                    onBlur={saveHistoryLimit}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') event.currentTarget.blur()
+                    }}
+                  />
                 </div>
               </div>
               <div className="settings-item">

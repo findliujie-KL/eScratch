@@ -1,4 +1,4 @@
-# One-Time Editor
+# eScratch
 
 A lightweight scratchpad that lives one shortcut away. Draft a message, hit the shortcut again, and it's already on your clipboard — ready to paste anywhere.
 
@@ -10,26 +10,16 @@ https://youtu.be/qwj9fr77vQg
 
 ## Install
 
-### macOS (Homebrew)
-
-```bash
-brew tap lef237/tap
-brew trust lef237/tap
-brew install --cask one-time-editor
-```
-
-Homebrew 5.1.15+ refuses to load casks from third-party taps until you trust them explicitly.
-
 ### Manual download
 
-Pre-built binaries for macOS, Windows, and Linux are available on the [Releases](https://github.com/lef237/one-time-editor/releases) page.
+Pre-built binaries for macOS, Windows, and Linux are available on the [Releases](https://github.com/findliujie-KL/eScratch/releases) page.
 
 For macOS releases built with this configuration, choose the `-arm64.dmg` download for Apple Silicon or `-x64.dmg` for an Intel Mac. Intel support through Homebrew also requires the tap to select the matching architecture; see [the release guide](docs/RELEASE.md).
 
 If you download manually on macOS, the app is not signed with an Apple Developer certificate, so macOS may show a warning. To allow it, run:
 
 ```bash
-xattr -cr "/Applications/One-Time Editor.app"
+xattr -cr "/Applications/eScratch.app"
 ```
 
 ## How it works

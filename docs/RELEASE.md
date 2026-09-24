@@ -24,26 +24,26 @@
 4. **Wait for the build to complete**
 
    ```bash
-   gh run watch --repo lef237/one-time-editor
+   gh run watch --repo findliujie-KL/eScratch
    ```
 
 5. **Publish the release**
 
    ```bash
-   gh release edit vX.Y.Z --repo lef237/one-time-editor --draft=false --latest
+   gh release edit vX.Y.Z --repo findliujie-KL/eScratch --draft=false --latest
    ```
 
 6. **Update homebrew-tap**
 
    ```bash
    # Download the dmg and get sha256
-   gh release download vX.Y.Z --repo lef237/one-time-editor --pattern "*.dmg" --dir release-download
+   gh release download vX.Y.Z --repo findliujie-KL/eScratch --pattern "*.dmg" --dir release-download
    shasum -a 256 release-download/*.dmg
    # Move to ~/Downloads when done
    mv release-download/*.dmg ~/Downloads/
    ```
 
-   Edit `Casks/one-time-editor.rb` in `~/ghq/github.com/lef237/homebrew-tap`:
+   Edit `Casks/escratch.rb` in your Homebrew tap:
 
    - Update `version` to the new version
    - Set architecture-specific checksums from the two downloaded files:
@@ -51,7 +51,7 @@
      ```ruby
      arch arm: "arm64", intel: "x64"
      sha256 arm: "<SHA256 of the arm64 DMG>", intel: "<SHA256 of the x64 DMG>"
-     url "https://github.com/lef237/one-time-editor/releases/download/v#{version}/One-Time.Editor-#{version}-#{arch}.dmg"
+     url "https://github.com/findliujie-KL/eScratch/releases/download/v#{version}/eScratch-#{version}-#{arch}.dmg"
      ```
 
    - Replace both checksum placeholders with the actual hashes. Confirm the asset URLs match the published release filenames. The existing tap is arm64-only; building an Intel DMG alone does not change Homebrew's selection.
@@ -63,7 +63,7 @@
 
    ```bash
    brew update
-   brew upgrade --cask one-time-editor
+   brew upgrade --cask escratch
    ```
 
 ## Local Mac packaging
