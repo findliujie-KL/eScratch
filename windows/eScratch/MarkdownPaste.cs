@@ -64,7 +64,10 @@ public static class MarkdownPaste
                 map.Add(i);
             }
         if (final.Length > 0 && final[^1] == ' ') { final.Length--; map.RemoveAt(map.Count - 1); }
-        var inserts = hasRtf ? RecoverDeletions(Normalize(plain), final.ToString()) : new Dictionary<int, string>();
+        // Word includes list labels in plain text but represents them structurally in HTML.
+        var comparisonPlain = root.Descendants("li").Any()
+            ? Regex.Replace(plain, @"(?m)^[ \t]*(?:\d+[.)]|[•·])[^\S\r\n]+", "") : plain;
+        var inserts = hasRtf ? RecoverDeletions(Normalize(comparisonPlain), final.ToString()) : new Dictionary<int, string>();
         var before = new Dictionary<int, string>();
         foreach (var pair in inserts) before[pair.Key < map.Count ? map[pair.Key] : map.Count > 0 ? map[^1] + 1 : parts.Count] = pair.Value;
         var result = new StringBuilder();
@@ -76,12 +79,47 @@ public static class MarkdownPaste
         return Regex.Replace(result.ToString(), @"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n").Trim();
     }
 
+    private static Dictionary<int, string> RecoverWords(string original, string final)
+    {
+        var result = new Dictionary<int, string>();
+        var a = Regex.Matches(original, @"\S+").Cast<Match>().ToArray();
+        var b = Regex.Matches(final, @"\S+").Cast<Match>().ToArray();
+        if (b.Length == 0) return result;
+        var positions = new int[b.Length]; int cursor = 0;
+        for (int i = 0; i < b.Length; i++)
+        {
+            while (cursor < a.Length && a[cursor].Value != b[i].Value) cursor++;
+            if (cursor == a.Length) return result;
+            positions[i] = cursor++;
+        }
+        cursor = a.Length - 1;
+        for (int i = b.Length - 1; i >= 0; i--)
+        {
+            while (cursor >= 0 && a[cursor].Value != b[i].Value) cursor--;
+            if (cursor != positions[i]) return result;
+            cursor--;
+        }
+        int previous = -1;
+        for (int i = 0; i < b.Length; i++)
+        {
+            if (positions[i] > previous + 1)
+            {
+                int start = a[previous + 1].Index;
+                result[b[i].Index] = original.Substring(start, a[positions[i]].Index - start);
+            }
+            previous = positions[i];
+        }
+        if (previous < a.Length - 1)
+            result[final.Length] = original.Substring(a[previous].Index + a[previous].Length);
+        return result;
+    }
+
     public static Dictionary<int, string> RecoverDeletions(string original, string final)
     {
         var result = new Dictionary<int, string>();
         if (final.Length == 0 || original.Length <= final.Length) return result;
-        // Only accept a unique deletion-only alignment. A forward/backward scan
-        // avoids quadratic diff costs and rejects ambiguous repeated text.
+        // Try a unique character alignment, then whole words when spaces or letters
+        // inside a removed word make character matching ambiguous. Both scans are linear.
         var positions = new int[final.Length]; int cursor = 0;
         for (int i = 0; i < final.Length; i++)
         {
@@ -93,7 +131,7 @@ public static class MarkdownPaste
         for (int i = final.Length - 1; i >= 0; i--)
         {
             cursor = original.LastIndexOf(final[i], cursor);
-            if (cursor != positions[i]) return result;
+            if (cursor != positions[i]) return RecoverWords(original, final);
             cursor--;
         }
         cursor = 0;
