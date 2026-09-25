@@ -60,7 +60,7 @@ a generated image with native OCR. `--network` additionally downloads Spanish,
 recognizes with two languages, removes it, and verifies cancellation cleanup.
 The WPF integration checks also exercise image paste, undo, editing during OCR,
 theme initialization, image-only and PNG-only routed paste commands, and language search after changing a selection. The full
-suite currently contains 55 offline checks (59 with network checks). It does not modify your application data or
+suite currently contains 62 offline checks (66 with network checks). It does not modify your application data or
 clipboard.
 
 ## Portable releases
@@ -160,3 +160,5 @@ Ambiguous alignments fall back to ordinary Markdown conversion. This is a heuris
 not Word revision metadata: unrelated differences between clipboard formats can also
 look like deletions. Insertions are not inferred. RTF presence enables the heuristic;
 HTML supplies the formatting. Clipboard content is processed locally.
+
+Clipboard OCR prefers PNG, normalizes pixel format and transparency, and retries alternate image representations when recognition returns no text. Bitmap-only raw RGB repair handles producers with an unset alpha channel.

@@ -257,11 +257,25 @@ public partial class MainWindow : Window
         reading = true; Status.Text = "Reading screenshot…";
         try
         {
-            var bitmap = ClipboardImage.Read(data);
-            if ((long)bitmap.PixelWidth * bitmap.PixelHeight > 50_000_000) throw new InvalidOperationException("This image is too large. Paste a smaller screenshot.");
-            var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
-            using var bytes = new MemoryStream(); encoder.Save(bytes);
-            var text = await ocr.RecognizeAsync(bytes.ToArray(), store.State.Settings.OcrLanguages.ToArray());
+            var candidates = ClipboardImage.ReadCandidates(data);
+            var languages = store.State.Settings.OcrLanguages.ToArray();
+            string text = "";
+            Exception? lastError = null;
+            bool recognized = false;
+            foreach (var bitmap in candidates)
+            {
+                try
+                {
+                    var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                    using var bytes = new MemoryStream(); encoder.Save(bytes);
+                    text = await ocr.RecognizeAsync(bytes.ToArray(), languages);
+                    recognized = true;
+                    if (!string.IsNullOrWhiteSpace(text)) break;
+                }
+                catch (Exception ex) { lastError = ex; }
+                if (quitting) return;
+            }
+            if (!recognized && lastError != null) throw lastError;
             if (quitting) return;
             if (string.IsNullOrWhiteSpace(text)) { Status.Text = "No text found. Try a clearer screenshot or another OCR language."; return; }
             if (revision != expectedRevision)

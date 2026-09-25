@@ -71,6 +71,15 @@ internal static class UiChecks
             ApplicationCommands.Paste.Execute(null, editor.TextArea);
             PumpUntil(() => status.Text != "Reading screenshot…");
             check(editor.Text.Contains("Hello"), "PNG-only clipboard is recognized through the Paste command");
+            var blank = BitmapSource.Create(1, 1, 96, 96, PixelFormats.Bgra32, null, new byte[] {255,255,255,255}, 4);
+            var blankPng = new PngBitmapEncoder(); blankPng.Frames.Add(BitmapFrame.Create(blank));
+            using var blankBytes = new MemoryStream(); blankPng.Save(blankBytes);
+            clipboardData = new DataObject(DataFormats.Bitmap, image);
+            clipboardData.SetData("PNG", blankBytes.ToArray());
+            editor.Text = "Before OLD After"; editor.Select(7, 3);
+            ApplicationCommands.Paste.Execute(null, editor.TextArea);
+            PumpUntil(() => status.Text != "Reading screenshot…");
+            check(editor.Text.StartsWith("Before Hello") && editor.Text.EndsWith(" After"), "Empty OCR from PNG retries Bitmap and replaces the selection");
             var settings = new SettingsWindow(store, new OcrService(store.DirectoryPath), _ => true, () => { });
             settings.Measure(new Size(530, 700)); settings.Arrange(new Rect(0, 0, 530, 700));
             var picker = (ComboBox)settings.FindName("LanguagePicker"); picker.ApplyTemplate();
