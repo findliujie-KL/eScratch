@@ -6,11 +6,13 @@ No Chromium, Node.js, web server, or Electron is used by this application.
 ## Features
 
 - Global show/hide shortcut (Ctrl+J by default); hiding copies the draft.
+- Tray-only operation (no taskbar icon), optional startup at Windows login, and a blank new entry on restoring from the tray (previous text is saved to History).
 - Close button hides to the tray. Double-click the tray icon to restore;
   right-click and choose Quit to exit completely.
 - Plain-text editor with Unicode, undo/redo, word wrap, configurable indentation,
-  visible whitespace, and a character count.
+  visible whitespace, and an optional live Word-compatible word count.
 - New draft (Ctrl+T) saves the current text to history. Copy draft uses Ctrl+Shift+C.
+- Ctrl+H toggles History while the editor or History panel is focused. The toolbar pin toggles Always on Top.
 - Configurable shortcuts, always-on-top, and dark/light themes (light by default).
 - Frameless title bar, compact icon toolbar, and right-side history/settings
   panels matching the original app. Drag the title bar to move the window;
@@ -60,7 +62,7 @@ a generated image with native OCR. `--network` additionally downloads Spanish,
 recognizes with two languages, removes it, and verifies cancellation cleanup.
 The WPF integration checks also exercise image paste, undo, editing during OCR,
 theme initialization, image-only and PNG-only routed paste commands, and language search after changing a selection. The full
-suite currently contains 68 offline checks (72 with network checks). It does not modify your application data or
+suite includes Word-derived multilingual counting fixtures, startup configuration, tray behavior, and status-message expiry. It does not modify your application data or
 clipboard.
 
 ## Portable releases
@@ -89,7 +91,7 @@ Install Inno Setup 7, then run:
 ```
 
 The compiler argument is optional when the compiler is at `.tools/inno/ISCC.exe`.
-The output is `windows/artifacts/installer/eScratch-2.0.0-win-x64-setup.exe`
+The output is `windows/artifacts/installer/eScratch-2.1.0-win-x64-setup.exe`
 (approximately 6.2 MB). This includes English OCR and only the x64 native libraries;
 it excludes debug symbols and the shared .NET runtime.
 

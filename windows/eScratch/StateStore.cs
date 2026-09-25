@@ -12,6 +12,7 @@ public sealed class Settings
     public string NewShortcut { get; set; } = "Control+T";
     public string MarkdownShortcut { get; set; } = "Control+Shift+V";
     public string CopyShortcut { get; set; } = "Control+Shift+C";
+    public bool ShowWordCount { get; set; } = true;
     public bool AlwaysOnTop { get; set; }
     public string IndentType { get; set; } = "space";
     public int IndentSize { get; set; } = 2;

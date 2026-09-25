@@ -20,6 +20,7 @@ public partial class App : Application
         {
             MainWindow = new MainWindow(directory == null ? null : new StateStore(directory));
             MainWindow.Show();
+            if (Array.IndexOf(e.Args, "--login") >= 0) MainWindow.Hide();
         }
         catch (Exception ex) { MessageBox.Show(ex.GetBaseException().Message, "eScratch could not start"); Shutdown(1); }
     }

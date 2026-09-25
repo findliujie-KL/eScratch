@@ -26,7 +26,8 @@ public partial class SettingsWindow : UserControl
         feedbackNotice = new TransientNotice(Feedback);
         downloadNotice = new TransientNotice(DownloadStatus);
         var s = store.State.Settings;
-        TopmostBox.IsChecked = s.AlwaysOnTop; LightBox.IsChecked = s.LightTheme; WhitespaceBox.IsChecked = s.ShowWhitespace;
+        try { LoginBox.IsChecked = LoginStartup.Enabled; } catch (Exception ex) { LoginBox.IsEnabled = false; feedbackNotice.Show("Could not read startup setting: " + ex.Message); }
+        WordCountBox.IsChecked = s.ShowWordCount; TopmostBox.IsChecked = s.AlwaysOnTop; LightBox.IsChecked = s.LightTheme; WhitespaceBox.IsChecked = s.ShowWhitespace;
         HistoryLimitBox.Text = s.HistoryLimit.ToString();
         IndentBox.SelectedIndex = s.IndentType == "tab" ? 1 : 0; IndentSizeBox.SelectedIndex = s.IndentSize / 2 - 1;
         ToggleBox.Text = s.Shortcut; NewBox.Text = s.NewShortcut; CopyBox.Text = s.CopyShortcut; MarkdownBox.Text = s.MarkdownShortcut;
@@ -48,11 +49,12 @@ public partial class SettingsWindow : UserControl
     private void RestoreDefaultsClick(object sender, RoutedEventArgs e)
     {
         if (MessageBox.Show(Window.GetWindow(this),
-            "Restore all settings to their defaults? This resets shortcuts, the light theme, indentation, OCR selection to English, and the history limit to 10. Only the newest 10 history entries will be kept. Your current draft and downloaded OCR languages will be preserved.",
+            "Restore all settings to their defaults? This turns off Start with Windows and resets shortcuts, the light theme, indentation, OCR selection to English, and the history limit to 10. Only the newest 10 history entries will be kept. Your current draft and downloaded OCR languages will be preserved.",
             "Restore defaults", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         try
         {
             if (!store.RestoreDefaults(registerShortcut)) { feedbackNotice.Show("The default shortcut is in use by another app. Close that app and retry. No settings were changed."); return; }
+            LoginStartup.SetEnabled(false);
             changed(); Close();
         }
         catch (Exception ex) { feedbackNotice.Show("Could not restore defaults: " + ex.Message); }
@@ -71,9 +73,9 @@ public partial class SettingsWindow : UserControl
         if (!registerShortcut(ToggleBox.Text)) { feedbackNotice.Show("That global shortcut is already in use. Please choose another."); return; }
         var s = store.State.Settings;
         s.Shortcut = ToggleBox.Text; s.NewShortcut = NewBox.Text; s.CopyShortcut = CopyBox.Text; s.MarkdownShortcut = MarkdownBox.Text;
-        s.AlwaysOnTop = TopmostBox.IsChecked == true; s.LightTheme = LightBox.IsChecked == true; s.ShowWhitespace = WhitespaceBox.IsChecked == true;
+        s.ShowWordCount = WordCountBox.IsChecked == true; s.AlwaysOnTop = TopmostBox.IsChecked == true; s.LightTheme = LightBox.IsChecked == true; s.ShowWhitespace = WhitespaceBox.IsChecked == true;
         s.HistoryLimit = limit; s.IndentType = IndentBox.SelectedIndex == 1 ? "tab" : "space"; s.IndentSize = (IndentSizeBox.SelectedIndex + 1) * 2;
-        try { store.Save(); changed(); Close(); } catch (Exception ex) { feedbackNotice.Show("Could not save: " + ex.Message); }
+        try { if (LoginBox.IsEnabled && (LoginBox.IsChecked == true) != LoginStartup.Enabled) LoginStartup.SetEnabled(LoginBox.IsChecked == true); store.Save(); changed(); Close(); } catch (Exception ex) { feedbackNotice.Show("Could not save: " + ex.Message); }
     }
     private void SearchLanguages(object sender, TextChangedEventArgs e)
     {

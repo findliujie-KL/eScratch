@@ -28,6 +28,14 @@ internal static class Program
                 var actual = MarkdownPaste.Convert(test.GetProperty("plain").GetString()!, test.GetProperty("html").GetString()!, test.GetProperty("rtf").GetBoolean());
                 Check(actual == test.GetProperty("expected").GetString(), "Markdown: " + test.GetProperty("name").GetString() + " => " + actual);
             }
+            Check(LoginStartup.Command(@"C:\My Apps\eScratch.exe", "unused") == "\"C:\\My Apps\\eScratch.exe\" --login", "Startup quotes portable executable path");
+            Check(LoginStartup.Command(@"C:\dotnet\dotnet.exe", @"C:\My Apps\eScratch.dll") == "\"C:\\dotnet\\dotnet.exe\" \"C:\\My Apps\\eScratch.dll\" --login", "Development startup includes quoted assembly path");
+            using (var wordCases = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "word-count-cases.json"))))
+            foreach (var test in wordCases.RootElement.GetProperty("cases").EnumerateArray())
+            {
+                var input = test.GetProperty("text").GetString()!;
+                Check(WordCounter.Count(input) == test.GetProperty("expected").GetInt32(), "Word-compatible count: " + System.Text.Json.JsonSerializer.Serialize(input));
+            }
             var store = new StateStore(folder);
             Check(store.State.Settings.MarkdownShortcut == "Control+Shift+V", "Markdown shortcut defaults to Ctrl+Shift+V");
             store.State.Settings.MarkdownShortcut = "Control+Alt+M"; store.Save();

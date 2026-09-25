@@ -39,6 +39,7 @@ internal static class UiChecks
         var window = new MainWindow(store, () => clipboardBusy ? throw new System.Runtime.InteropServices.COMException("Clipboard busy", unchecked((int)0x800401D0)) : clipboardData);
         try
         {
+            check(!window.ShowInTaskbar, "Editor has no taskbar button");
             check(store.State.Settings.LightTheme && window.Background is SolidColorBrush brush && brush.Color.R == 0xef, "WPF defaults to the original light palette");
             ((Button)window.FindName("ThemeButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(!new StateStore(store.DirectoryPath).State.Settings.LightTheme && ((SolidColorBrush)window.Background).Color.R == 0x1e, "Toolbar theme toggle applies and persists dark mode");
@@ -50,6 +51,25 @@ internal static class UiChecks
             ((Button)window.FindName("SettingsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((Border)window.FindName("PanelBackdrop")).Visibility == Visibility.Collapsed, "Clicking Settings again dismisses the panel");
             var editor = (TextEditor)window.FindName("Editor");
+            editor.Text = "Hello, world! Don't stop. 123";
+            check(((TextBlock)window.FindName("Count")).Text == "5 words", "Live word count handles punctuation and contractions");
+            editor.Text = "你好世界"; check(((TextBlock)window.FindName("Count")).Text == "4 words", "Live word count includes Chinese characters");
+            editor.Clear(); check(((TextBlock)window.FindName("Count")).Text == "0 words", "Empty editor has zero words");
+            ((Button)window.FindName("PinButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            check(window.Topmost && new StateStore(store.DirectoryPath).State.Settings.AlwaysOnTop, "Toolbar pin applies and persists Always on Top");
+            ((Button)window.FindName("PinButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            check(!window.Topmost, "Toolbar pin toggles off");
+            store.State.Settings.ShowWordCount = false; store.Save();
+            typeof(MainWindow).GetMethod("ApplySettings", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
+            check(((TextBlock)window.FindName("Count")).Visibility == Visibility.Collapsed && !new StateStore(store.DirectoryPath).State.Settings.ShowWordCount, "Word count can be hidden and preference persists");
+            store.State.Settings.ShowWordCount = true;
+            typeof(MainWindow).GetMethod("ApplySettings", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
+            editor.Text = "Previous draft";
+            typeof(MainWindow).GetMethod("StartResumedEntry", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
+            check(editor.Text == "" && new StateStore(store.DirectoryPath).State.History[0].Text == "Previous draft", "Resume archives draft before starting blank entry");
+            var historyCount = store.State.History.Count;
+            typeof(MainWindow).GetMethod("StartResumedEntry", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
+            check(store.State.History.Count == historyCount, "Resuming blank entry does not add history");
             clipboardBusy = true;
             check(!ApplicationCommands.Paste.CanExecute(null, editor.TextArea), "Busy clipboard disables Paste without crashing");
             clipboardBusy = false;

@@ -20,7 +20,6 @@ public partial class MainWindow : Window
     private readonly Func<IDataObject?> readClipboard;
     private readonly Forms.NotifyIcon tray;
     private readonly DispatcherTimer saveTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
-    private readonly DispatcherTimer copyFeedbackTimer = new() { Interval = TimeSpan.FromMilliseconds(1500) };
     private readonly TransientNotice statusNotice;
     private Hotkey? hotkey;
     private bool quitting, reading;
@@ -39,7 +38,6 @@ public partial class MainWindow : Window
         statusNotice.Show(store.Warning ?? "");
         Placeholder.Visibility = Editor.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         saveTimer.Tick += (_, _) => { saveTimer.Stop(); SaveState(); };
-        copyFeedbackTimer.Tick += (_, _) => { copyFeedbackTimer.Stop(); CopyButton.ClearValue(Button.ForegroundProperty); };
         DataObject.AddPastingHandler(Editor, OnPaste);
         var menu = new ContextMenu();
         var paste = new MenuItem { Header = "Paste", Command = ApplicationCommands.Paste, CommandTarget = Editor.TextArea, InputGestureText = "Ctrl+V" };
@@ -66,6 +64,7 @@ public partial class MainWindow : Window
             hotkey = new Hotkey(new WindowInteropHelper(this).Handle, Toggle);
             if (!hotkey.Register(store.State.Settings.Shortcut)) statusNotice.Show("Shortcut is in use by another app. Choose another shortcut in Settings.");
         };
+        StateChanged += (_, _) => { if (WindowState == WindowState.Minimized) HideToTray(); };
         Closing += OnClosing;
         Loaded += (_, _) => Editor.Focus();
         Application.Current.SessionEnding += (_, _) => { quitting = true; SaveState(); };
@@ -79,7 +78,7 @@ public partial class MainWindow : Window
     {
         revision++;
         if (Count == null) return;
-        Count.Text = $"{Editor.Text.Length:N0} characters";
+        UpdateWordCount();
         Placeholder.Visibility = Editor.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         saveTimer.Stop(); saveTimer.Start();
     }
@@ -87,6 +86,11 @@ public partial class MainWindow : Window
     {
         var s = store.State.Settings;
         Topmost = s.AlwaysOnTop;
+        PinButton.SetResourceReference(Button.BackgroundProperty, Topmost ? "Active" : "Panel");
+        PinButton.SetResourceReference(Button.ForegroundProperty, Topmost ? "Accent" : "Secondary");
+        PinButton.ToolTip = Topmost ? "Always on top: on" : "Always on top: off";
+        Count.Visibility = s.ShowWordCount ? Visibility.Visible : Visibility.Collapsed;
+        UpdateWordCount();
         Editor.Options.ConvertTabsToSpaces = s.IndentType != "tab";
         Editor.Options.IndentationSize = s.IndentSize;
         Editor.Options.ShowSpaces = s.ShowWhitespace;
@@ -101,23 +105,48 @@ public partial class MainWindow : Window
         };
         foreach (var color in colors) Application.Current.Resources[color.Key] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(s.LightTheme ? color.Value.Light : color.Value.Dark));
         NewButton.ToolTip = "New (" + s.NewShortcut.Replace("Control", "Ctrl") + ")";
-        CopyButton.ToolTip = "Copy (" + s.CopyShortcut.Replace("Control", "Ctrl") + ")";
         ThemeButton.ToolTip = s.LightTheme ? "Switch to dark theme" : "Switch to light theme";
         ThemeIcon.Data = Geometry.Parse(s.LightTheme ? "M21,12.79 A9,9 0 1 1 11.21,3 A7,7 0 0 0 21,12.79" : "M17,12 A5,5 0 1 1 7,12 A5,5 0 1 1 17,12 M12,1 V3 M12,21 V23 M1,12 H3 M21,12 H23 M4,4 L6,6 M18,18 L20,20 M4,20 L6,18 M18,6 L20,4");
+    }
+    private void UpdateWordCount()
+    {
+        var words = WordCounter.Count(Editor.Text);
+        Count.Text = $"{words:N0} " + (words == 1 ? "word" : "words");
+    }
+    private void PinClick(object sender, RoutedEventArgs e)
+    {
+        store.State.Settings.AlwaysOnTop = !store.State.Settings.AlwaysOnTop;
+        ApplySettings(); SaveState();
+        if (settingsWindow != null) ((CheckBox)settingsWindow.FindName("TopmostBox")).IsChecked = Topmost;
     }
     private bool CopyDraft()
     {
         if (string.IsNullOrWhiteSpace(Editor.Text)) return true;
-        try { Clipboard.SetDataObject(Editor.Text, true); statusNotice.Show("Copied", 1.5); CopyButton.SetResourceReference(Button.ForegroundProperty, "Success"); copyFeedbackTimer.Stop(); copyFeedbackTimer.Start(); return true; }
+        try { Clipboard.SetDataObject(Editor.Text, true); statusNotice.Show("Copied", 1.5); return true; }
         catch (Exception ex) { statusNotice.Show("Clipboard is busy. Please try again. " + ex.Message); return false; }
     }
     private void Toggle() { if (IsVisible && WindowState != WindowState.Minimized) HideToTray(); else RestoreWindow(); }
     private void HideToTray() { if (!CopyDraft()) return; SaveState(); settingsWindow?.Close(); Hide(); }
-    private void RestoreWindow() { Show(); WindowState = WindowState.Normal; Activate(); Editor.Focus(); }
+    private void RestoreWindow()
+    {
+        if (!IsVisible || WindowState == WindowState.Minimized) StartResumedEntry();
+        Show(); WindowState = WindowState.Normal; Activate(); Editor.Focus();
+    }
+    private void StartResumedEntry()
+    {
+        try
+        {
+            // Archive successfully before clearing, so failures never discard a draft.
+            store.Remember(Editor.Text);
+            revision++; Editor.Clear(); SaveState(); RefreshHistory();
+            BackClick(this, new RoutedEventArgs());
+        }
+        catch (Exception ex) { statusNotice.Show("Could not start a new entry: " + ex.Message); }
+    }
     private void OnClosing(object? sender, CancelEventArgs e) { if (!quitting) { e.Cancel = true; HideToTray(); } }
     private void Quit()
     {
-        SaveState(); quitting = true; saveTimer.Stop(); copyFeedbackTimer.Stop(); statusNotice.Dispose(); hotkey?.Dispose();
+        SaveState(); quitting = true; saveTimer.Stop(); statusNotice.Dispose(); hotkey?.Dispose();
         tray.Visible = false; tray.Icon?.Dispose(); tray.Dispose();
         settingsWindow?.Close(); Application.Current.Shutdown();
     }
@@ -196,6 +225,8 @@ public partial class MainWindow : Window
     {
         if (e.Key == Key.Escape) { if (PanelBackdrop.IsVisible) BackClick(sender, e); else HideToTray(); e.Handled = true; return; }
         if (settingsWindow != null) return;
+        if (e.Key == Key.H && Keyboard.Modifiers == ModifierKeys.Control)
+        { if (!e.IsRepeat) HistoryClick(sender, e); e.Handled = true; return; }
         try
         {
             if (Editor.IsKeyboardFocusWithin && Hotkey.Parse(store.State.Settings.MarkdownShortcut).Matches(this, e)) { PasteMarkdown(); e.Handled = true; }
