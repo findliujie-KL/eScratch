@@ -10,17 +10,14 @@ https://youtu.be/qwj9fr77vQg
 
 ## Install
 
-### Manual download
+This fork publishes Windows x64 builds. Choose a version from the [Releases](https://github.com/findliujie-KL/eScratch/releases) page:
 
-Pre-built binaries for macOS, Windows, and Linux are available on the [Releases](https://github.com/findliujie-KL/eScratch/releases) page.
+- **Electron portable (main branch):** download the asset ending in `-portable.exe` from an Electron release and run it. No installation or separate .NET runtime is required. English OCR is bundled; additional languages can be downloaded in Settings.
+- **WPF preview (wpf-rewrite branch):** download `eScratch-2.0.0-win-x64-setup.exe` from the newest WPF prerelease. Its compact installer can download the .NET 10 Desktop Runtime (x64) and Visual C++ runtime when needed.
 
-For macOS releases built with this configuration, choose the `-arm64.dmg` download for Apple Silicon or `-x64.dmg` for an Intel Mac. Intel support through Homebrew also requires the tap to select the matching architecture; see [the release guide](docs/RELEASE.md).
+The Electron portable executable extracts its application files to a temporary folder when launched. Settings, draft history, and downloaded OCR languages are stored in your Windows user profile, not beside the executable. Closing the editor hides it to the tray; use the tray menu to quit fully.
 
-If you download manually on macOS, the app is not signed with an Apple Developer certificate, so macOS may show a warning. To allow it, run:
-
-```bash
-xattr -cr "/Applications/eScratch.app"
-```
+These builds are unsigned. macOS and Linux downloads are not currently published by this fork.
 
 ## How it works
 
@@ -40,7 +37,7 @@ On macOS, you can choose whether the app lives in the menu bar or in the Dock. E
 - **Instant toggle** — Global shortcut brings up the editor from any app, and hides it just as fast
 - **Auto-copy on hide** — Text is copied to clipboard when the window is dismissed via shortcut
 - **Focus restore** — On macOS, focus returns to the app you were using before
-- **History** — Past entries are saved automatically when you start a new draft (up to 100)
+- **History** — Past entries are saved automatically when you start a new draft (10 by default; configurable in Settings)
 - **Dark / Light theme** — Toggle between dark and light mode
 - **Configurable shortcut** — Change the global shortcut in settings by pressing your desired key combination
 - **Show whitespace** — Optionally reveal spaces, tabs, and full-width spaces as visible markers

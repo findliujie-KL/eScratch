@@ -642,7 +642,7 @@ function App() {
               catch { setPasteMessage('Could not read the clipboard.') }
             }}
             onScroll={syncOverlayScroll}
-            placeholder="Type here..."
+            placeholder="Type Here or Simply Paste..."
             spellCheck={false}
             autoFocus
           />
