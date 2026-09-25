@@ -5,10 +5,13 @@ export interface HistoryEntry {
 }
 
 export interface AppConfig {
+  startAtLogin: boolean
+  loginAvailable: boolean
   shortcut: string
   newShortcut: string
   markdownShortcut: string
   copyShortcut: string
+  showWordCount: boolean
   alwaysOnTop: boolean
   indentType: 'space' | 'tab'
   indentSize: number
@@ -33,6 +36,8 @@ export interface OcrDownloadProgress {
 }
 
 export interface ElectronAPI {
+  setStartAtLogin: (enabled: boolean) => Promise<boolean>
+  onResumeEntry: (callback: () => void) => () => void
   readMarkdownClipboard: () => Promise<{ plain: string; html: string; hasRtf: boolean }>
   editorPaste: () => Promise<void>
   getHistory: () => Promise<HistoryEntry[]>
@@ -53,6 +58,7 @@ export interface ElectronAPI {
   restoreDefaults: () => Promise<{ config: AppConfig; history: HistoryEntry[] }>
   setShortcut: (shortcut: string) => Promise<boolean>
   setLocalShortcut: (name: 'new' | 'copy' | 'markdown', shortcut: string) => Promise<boolean>
+  setShowWordCount: (value: boolean) => Promise<boolean>
   setAlwaysOnTop: (alwaysOnTop: boolean) => Promise<boolean>
   setIndent: (indentType: string, indentSize: number) => Promise<void>
   setShowWhitespace: (showWhitespace: boolean) => Promise<boolean>

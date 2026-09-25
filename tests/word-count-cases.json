@@ -1,0 +1,1001 @@
+{
+  "reference": "Microsoft Word 16.0.19127; Range.ComputeStatistics(wdStatisticWords); separate unsaved plain-text document; Windows",
+  "cases": [
+    {
+      "text": "",
+      "expected": 0
+    },
+    {
+      "text": "Hello, world!",
+      "expected": 2
+    },
+    {
+      "text": "私は学生です",
+      "expected": 6
+    },
+    {
+      "text": "ひらがな",
+      "expected": 4
+    },
+    {
+      "text": "カタカナ",
+      "expected": 4
+    },
+    {
+      "text": "ｶﾀｶﾅ",
+      "expected": 4
+    },
+    {
+      "text": "こんにちは世界",
+      "expected": 7
+    },
+    {
+      "text": "スーパー",
+      "expected": 4
+    },
+    {
+      "text": "パーティー",
+      "expected": 5
+    },
+    {
+      "text": "が",
+      "expected": 1
+    },
+    {
+      "text": "が",
+      "expected": 2
+    },
+    {
+      "text": "你好，世界！",
+      "expected": 6
+    },
+    {
+      "text": "안녕하세요 세계",
+      "expected": 7
+    },
+    {
+      "text": "한국어테스트",
+      "expected": 6
+    },
+    {
+      "text": "مرحبا بالعالم",
+      "expected": 2
+    },
+    {
+      "text": "الْعَرَبِيَّةُ",
+      "expected": 1
+    },
+    {
+      "text": "Hello世界test",
+      "expected": 4
+    },
+    {
+      "text": "😀 ...",
+      "expected": 2
+    },
+    {
+      "text": "...",
+      "expected": 1
+    },
+    {
+      "text": "**hello** ~~old~~",
+      "expected": 2
+    },
+    {
+      "text": "foo/bar",
+      "expected": 1
+    },
+    {
+      "text": "one—two",
+      "expected": 2
+    },
+    {
+      "text": "one–two",
+      "expected": 2
+    },
+    {
+      "text": "a+b=c",
+      "expected": 1
+    },
+    {
+      "text": "hello.world",
+      "expected": 1
+    },
+    {
+      "text": "foo@example.com",
+      "expected": 1
+    },
+    {
+      "text": "well-known",
+      "expected": 1
+    },
+    {
+      "text": "don't",
+      "expected": 1
+    },
+    {
+      "text": "123,456.78",
+      "expected": 1
+    },
+    {
+      "text": "１２３",
+      "expected": 3
+    },
+    {
+      "text": "ＡＢＣ",
+      "expected": 3
+    },
+    {
+      "text": "𠀀𠮷",
+      "expected": 2
+    },
+    {
+      "text": "二〇二六",
+      "expected": 4
+    },
+    {
+      "text": "你 好 😀",
+      "expected": 3
+    },
+    {
+      "text": "Hello世界 helloかな",
+      "expected": 6
+    },
+    {
+      "text": "「こんにちは」",
+      "expected": 7
+    },
+    {
+      "text": "。 、 ！",
+      "expected": 3
+    },
+    {
+      "text": "hello　world",
+      "expected": 2
+    },
+    {
+      "text": "one_two",
+      "expected": 1
+    },
+    {
+      "text": "😊😊",
+      "expected": 1
+    },
+    {
+      "text": "中文 English 123",
+      "expected": 4
+    },
+    {
+      "text": "汉,字",
+      "expected": 3
+    },
+    {
+      "text": "汉。字",
+      "expected": 3
+    },
+    {
+      "text": "(汉字)",
+      "expected": 4
+    },
+    {
+      "text": "汉字。",
+      "expected": 3
+    },
+    {
+      "text": "汉字.",
+      "expected": 3
+    },
+    {
+      "text": "hello,日本",
+      "expected": 3
+    },
+    {
+      "text": "日本hello",
+      "expected": 3
+    },
+    {
+      "text": "abc😀def",
+      "expected": 1
+    },
+    {
+      "text": "a​b",
+      "expected": 1
+    },
+    {
+      "text": "a b",
+      "expected": 2
+    },
+    {
+      "text": "a⁠b",
+      "expected": 1
+    },
+    {
+      "text": "a­b",
+      "expected": 1
+    },
+    {
+      "text": "a‑b",
+      "expected": 1
+    },
+    {
+      "text": "a‐b",
+      "expected": 3
+    },
+    {
+      "text": "a−b",
+      "expected": 1
+    },
+    {
+      "text": "a\tb",
+      "expected": 2
+    },
+    {
+      "text": "a\nb",
+      "expected": 2
+    },
+    {
+      "text": "—",
+      "expected": 0
+    },
+    {
+      "text": "–",
+      "expected": 0
+    },
+    {
+      "text": "-",
+      "expected": 1
+    },
+    {
+      "text": "a — b",
+      "expected": 2
+    },
+    {
+      "text": "。hello",
+      "expected": 2
+    },
+    {
+      "text": "😀汉😀",
+      "expected": 3
+    },
+    {
+      "text": "한글 테스트",
+      "expected": 5
+    },
+    {
+      "text": "한글",
+      "expected": 6
+    },
+    {
+      "text": "ㄱㄴㄷ",
+      "expected": 3
+    },
+    {
+      "text": "ｶﾞ",
+      "expected": 2
+    },
+    {
+      "text": "・",
+      "expected": 1
+    },
+    {
+      "text": "々",
+      "expected": 1
+    },
+    {
+      "text": "〆",
+      "expected": 1
+    },
+    {
+      "text": "〃",
+      "expected": 1
+    },
+    {
+      "text": "！ABC？",
+      "expected": 3
+    },
+    {
+      "text": "ＡBC",
+      "expected": 2
+    },
+    {
+      "text": "ＡＢＣ123",
+      "expected": 4
+    },
+    {
+      "text": "１２.３",
+      "expected": 4
+    },
+    {
+      "text": "abćdef",
+      "expected": 1
+    },
+    {
+      "text": "ไทยภาษาไทย",
+      "expected": 1
+    },
+    {
+      "text": "ภาษา ไทย",
+      "expected": 2
+    },
+    {
+      "text": "हिन्दी भाषा",
+      "expected": 2
+    },
+    {
+      "text": "שלום עולם",
+      "expected": 2
+    },
+    {
+      "text": "。！",
+      "expected": 2
+    },
+    {
+      "text": "​",
+      "expected": 0
+    },
+    {
+      "text": "‌",
+      "expected": 1
+    },
+    {
+      "text": "‍",
+      "expected": 1
+    },
+    {
+      "text": "́",
+      "expected": 1
+    },
+    {
+      "text": "a b",
+      "expected": 1
+    },
+    {
+      "text": "a b",
+      "expected": 1
+    },
+    {
+      "text": "a\rb",
+      "expected": 2
+    },
+    {
+      "text": "a\u000bb",
+      "expected": 2
+    },
+    {
+      "text": "foo:bar",
+      "expected": 1
+    },
+    {
+      "text": "foo;bar",
+      "expected": 1
+    },
+    {
+      "text": "foo,bar",
+      "expected": 1
+    },
+    {
+      "text": "foo!bar",
+      "expected": 1
+    },
+    {
+      "text": "foo?bar",
+      "expected": 1
+    },
+    {
+      "text": "foo\"bar",
+      "expected": 1
+    },
+    {
+      "text": "foo(bar)",
+      "expected": 1
+    },
+    {
+      "text": "foo…bar",
+      "expected": 1
+    },
+    {
+      "text": "a|b",
+      "expected": 1
+    },
+    {
+      "text": "a\\b",
+      "expected": 1
+    },
+    {
+      "text": "a　b",
+      "expected": 2
+    },
+    {
+      "text": "①②",
+      "expected": 2
+    },
+    {
+      "text": "㌀㌁",
+      "expected": 2
+    },
+    {
+      "text": "㐀㐁",
+      "expected": 2
+    },
+    {
+      "text": "ㇰㇱ",
+      "expected": 2
+    },
+    {
+      "text": "㆐㆑",
+      "expected": 2
+    },
+    {
+      "text": "㊀㊁",
+      "expected": 2
+    },
+    {
+      "text": "あ️い",
+      "expected": 2
+    },
+    {
+      "text": "汉️字",
+      "expected": 2
+    },
+    {
+      "text": "a\u0000b",
+      "expected": 1
+    },
+    {
+      "text": "a\u0007b",
+      "expected": 1
+    },
+    {
+      "text": "a\bb",
+      "expected": 1
+    },
+    {
+      "text": "a\fb",
+      "expected": 2
+    },
+    {
+      "text": "a\u001cb",
+      "expected": 1
+    },
+    {
+      "text": "a\u001fb",
+      "expected": 1
+    },
+    {
+      "text": "a b",
+      "expected": 2
+    },
+    {
+      "text": "ab",
+      "expected": 1
+    },
+    {
+      "text": "ab",
+      "expected": 1
+    },
+    {
+      "text": "a b",
+      "expected": 1
+    },
+    {
+      "text": "a᠎b",
+      "expected": 1
+    },
+    {
+      "text": "a b",
+      "expected": 1
+    },
+    {
+      "text": "a b",
+      "expected": 1
+    },
+    {
+      "text": "a b",
+      "expected": 1
+    },
+    {
+      "text": "a b",
+      "expected": 1
+    },
+    {
+      "text": "a b",
+      "expected": 1
+    },
+    {
+      "text": "a b",
+      "expected": 2
+    },
+    {
+      "text": "a b",
+      "expected": 1
+    },
+    {
+      "text": "a b",
+      "expected": 1
+    },
+    {
+      "text": "a b",
+      "expected": 1
+    },
+    {
+      "text": "a b",
+      "expected": 1
+    },
+    {
+      "text": "a b",
+      "expected": 1
+    },
+    {
+      "text": "a‌b",
+      "expected": 1
+    },
+    {
+      "text": "a‍b",
+      "expected": 1
+    },
+    {
+      "text": "a‎b",
+      "expected": 1
+    },
+    {
+      "text": "a‏b",
+      "expected": 1
+    },
+    {
+      "text": "a‒b",
+      "expected": 1
+    },
+    {
+      "text": "a–b",
+      "expected": 2
+    },
+    {
+      "text": "a—b",
+      "expected": 2
+    },
+    {
+      "text": "a―b",
+      "expected": 1
+    },
+    {
+      "text": "a‖b",
+      "expected": 3
+    },
+    {
+      "text": "a†b",
+      "expected": 1
+    },
+    {
+      "text": "a‡b",
+      "expected": 1
+    },
+    {
+      "text": "a•b",
+      "expected": 2
+    },
+    {
+      "text": "a‥b",
+      "expected": 3
+    },
+    {
+      "text": "a…b",
+      "expected": 1
+    },
+    {
+      "text": "a‧b",
+      "expected": 3
+    },
+    {
+      "text": "a b",
+      "expected": 1
+    },
+    {
+      "text": "a‰b",
+      "expected": 1
+    },
+    {
+      "text": "a※b",
+      "expected": 3
+    },
+    {
+      "text": "a⁇b",
+      "expected": 1
+    },
+    {
+      "text": "a b",
+      "expected": 1
+    },
+    {
+      "text": "a℃b",
+      "expected": 3
+    },
+    {
+      "text": "a℡b",
+      "expected": 3
+    },
+    {
+      "text": "aⅠb",
+      "expected": 3
+    },
+    {
+      "text": "aⅰb",
+      "expected": 3
+    },
+    {
+      "text": "a①b",
+      "expected": 3
+    },
+    {
+      "text": "a⓪b",
+      "expected": 1
+    },
+    {
+      "text": "a─b",
+      "expected": 3
+    },
+    {
+      "text": "a■b",
+      "expected": 3
+    },
+    {
+      "text": "a★b",
+      "expected": 3
+    },
+    {
+      "text": "a⺀b",
+      "expected": 3
+    },
+    {
+      "text": "a⼀b",
+      "expected": 3
+    },
+    {
+      "text": "a⿰b",
+      "expected": 3
+    },
+    {
+      "text": "a、b",
+      "expected": 3
+    },
+    {
+      "text": "a〿b",
+      "expected": 3
+    },
+    {
+      "text": "aꀀb",
+      "expected": 3
+    },
+    {
+      "text": "aꥠb",
+      "expected": 3
+    },
+    {
+      "text": "a가b",
+      "expected": 3
+    },
+    {
+      "text": "aힰb",
+      "expected": 3
+    },
+    {
+      "text": "a豈b",
+      "expected": 3
+    },
+    {
+      "text": "a︀b",
+      "expected": 1
+    },
+    {
+      "text": "a️b",
+      "expected": 1
+    },
+    {
+      "text": "a︐b",
+      "expected": 1
+    },
+    {
+      "text": "a︰b",
+      "expected": 3
+    },
+    {
+      "text": "a﹐b",
+      "expected": 3
+    },
+    {
+      "text": "a﻿b",
+      "expected": 1
+    },
+    {
+      "text": "a！b",
+      "expected": 3
+    },
+    {
+      "text": "a｡b",
+      "expected": 3
+    },
+    {
+      "text": "aﾠb",
+      "expected": 3
+    },
+    {
+      "text": "a￠b",
+      "expected": 3
+    },
+    {
+      "text": "a￨b",
+      "expected": 3
+    },
+    {
+      "text": "a�b",
+      "expected": 1
+    },
+    {
+      "text": "a𛀀b",
+      "expected": 3
+    },
+    {
+      "text": "a🈀b",
+      "expected": 1
+    },
+    {
+      "text": "Ελληνικά κείμενο",
+      "expected": 2
+    },
+    {
+      "text": "Русский текст",
+      "expected": 2
+    },
+    {
+      "text": "️",
+      "expected": 1
+    },
+    {
+      "text": "­",
+      "expected": 1
+    },
+    {
+      "text": "‎",
+      "expected": 1
+    },
+    {
+      "text": "‏",
+      "expected": 1
+    },
+    {
+      "text": " ",
+      "expected": 1
+    },
+    {
+      "text": " ",
+      "expected": 1
+    },
+    {
+      "text": " ",
+      "expected": 1
+    },
+    {
+      "text": " ",
+      "expected": 1
+    },
+    {
+      "text": " ",
+      "expected": 1
+    },
+    {
+      "text": " ",
+      "expected": 0
+    },
+    {
+      "text": " ",
+      "expected": 1
+    },
+    {
+      "text": " ",
+      "expected": 1
+    },
+    {
+      "text": " ",
+      "expected": 1
+    },
+    {
+      "text": " ",
+      "expected": 1
+    },
+    {
+      "text": " ",
+      "expected": 1
+    },
+    {
+      "text": " ",
+      "expected": 1
+    },
+    {
+      "text": " ",
+      "expected": 1
+    },
+    {
+      "text": " ",
+      "expected": 1
+    },
+    {
+      "text": " ",
+      "expected": 1
+    },
+    {
+      "text": " ",
+      "expected": 1
+    },
+    {
+      "text": "﻿",
+      "expected": 0
+    },
+    {
+      "text": "\u0000",
+      "expected": 1
+    },
+    {
+      "text": "",
+      "expected": 1
+    },
+    {
+      "text": "　",
+      "expected": 0
+    },
+    {
+      "text": "•",
+      "expected": 0
+    },
+    {
+      "text": "한️글",
+      "expected": 2
+    },
+    {
+      "text": "汉́字",
+      "expected": 3
+    },
+    {
+      "text": "汉‍字",
+      "expected": 3
+    },
+    {
+      "text": "aჿb",
+      "expected": 1
+    },
+    {
+      "text": "aᄀb",
+      "expected": 3
+    },
+    {
+      "text": "aᇿb",
+      "expected": 3
+    },
+    {
+      "text": "aሀb",
+      "expected": 1
+    },
+    {
+      "text": "a⿿b",
+      "expected": 3
+    },
+    {
+      "text": "a鿿b",
+      "expected": 3
+    },
+    {
+      "text": "a꒏b",
+      "expected": 3
+    },
+    {
+      "text": "a꒐b",
+      "expected": 3
+    },
+    {
+      "text": "a꓏b",
+      "expected": 3
+    },
+    {
+      "text": "aꓐb",
+      "expected": 1
+    },
+    {
+      "text": "a꥟b",
+      "expected": 1
+    },
+    {
+      "text": "a꥿b",
+      "expected": 3
+    },
+    {
+      "text": "aꦀb",
+      "expected": 1
+    },
+    {
+      "text": "a꯿b",
+      "expected": 1
+    },
+    {
+      "text": "a힯b",
+      "expected": 3
+    },
+    {
+      "text": "a퟿b",
+      "expected": 3
+    },
+    {
+      "text": "ab",
+      "expected": 1
+    },
+    {
+      "text": "ab",
+      "expected": 1
+    },
+    {
+      "text": "a﫿b",
+      "expected": 3
+    },
+    {
+      "text": "aﬀb",
+      "expected": 1
+    },
+    {
+      "text": "a︯b",
+      "expected": 1
+    },
+    {
+      "text": "a﹯b",
+      "expected": 3
+    },
+    {
+      "text": "aﹰb",
+      "expected": 1
+    },
+    {
+      "text": "a＀b",
+      "expected": 3
+    },
+    {
+      "text": "a￯b",
+      "expected": 3
+    },
+    {
+      "text": "a￰b",
+      "expected": 1
+    },
+    {
+      "text": "a𚿰b",
+      "expected": 1
+    },
+    {
+      "text": "a𛅯b",
+      "expected": 3
+    },
+    {
+      "text": "a𛅰b",
+      "expected": 3
+    },
+    {
+      "text": "a𠀀b",
+      "expected": 3
+    },
+    {
+      "text": "a𮹟b",
+      "expected": 3
+    },
+    {
+      "text": "a𯿿b",
+      "expected": 3
+    },
+    {
+      "text": "a𰀀b",
+      "expected": 3
+    },
+    {
+      "text": "a𳑿b",
+      "expected": 1
+    },
+    {
+      "text": "a󠄀b",
+      "expected": 1
+    }
+  ]
+}

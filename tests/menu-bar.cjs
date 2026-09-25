@@ -8,13 +8,17 @@ const ts = require('typescript');
 
 // Exercise the real main process with an in-memory Electron host, without
 // opening windows, touching the clipboard, or changing the user's notes.
-async function launch(platform = 'darwin', initialConfig = null, blockedShortcut = null) {
+async function launch(platform = 'darwin', initialConfig = null, blockedShortcut = null, login = false, portable = false) {
   const windows = [], trays = [], shortcuts = new Map(), ipcHandlers = new Map(), writes = [];
   const storedFiles = new Map();
   const normalizePath = file => file.replaceAll('\\', '/');
   if (initialConfig !== null) storedFiles.set('/test-data/config.json', JSON.stringify(initialConfig));
   const app = new EventEmitter();
   Object.assign(app, {
+    isPackaged: portable,
+    getAppPath: () => '/app',
+    getLoginItemSettings: () => ({ openAtLogin: !!app.loginEnabled, wasOpenedAtLogin: login }),
+    setLoginItemSettings(options) { app.loginOptions = options; app.loginEnabled = options.openAtLogin; },
     getPath: () => '/test-data', whenReady: () => Promise.resolve(),
     setName(name) { this.name = name; },
     dock: {
@@ -26,7 +30,7 @@ async function launch(platform = 'darwin', initialConfig = null, blockedShortcut
     quit() { app.emit('before-quit'); app.emit('will-quit'); app.quitCalled = true; }
   });
   class Window extends EventEmitter {
-    constructor() { super(); this.visible = false; windows.push(this); }
+    constructor(options) { super(); this.options = options; this.visible = false; this.messages = []; this.webContents = { send: (...args) => this.messages.push(args) }; windows.push(this); }
     loadFile() { this.emit('ready-to-show'); }
     show() { this.visible = true; }
     hide() { this.visible = false; }
@@ -73,16 +77,16 @@ async function launch(platform = 'darwin', initialConfig = null, blockedShortcut
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
   vm.runInNewContext(code, {
     require: name => name === 'electron' ? electron : name === 'node:fs' ? fsMock : require(name),
-    exports: {}, __dirname: '/app/dist-electron', process: { platform, env: {} }, console
+    exports: {}, __dirname: '/app/dist-electron', process: { platform, argv: login ? ['--login'] : [], execPath: '/runtime/electron.exe', resourcesPath: '/resources', env: portable ? { PORTABLE_EXECUTABLE_FILE: 'C:/Apps/eScratch.exe' } : {} }, console
   });
   await new Promise(resolve => setImmediate(resolve));
   return { app, windows, trays, shortcuts, ipcHandlers, writes, storedFiles };
 }
 
-test('Dock mode is the default and keeps the Dock icon without a menu-bar entry', async () => {
+test('Tray-only mode is the default on Mac', async () => {
   const { app, trays } = await launch();
-  assert.equal(trays.length, 0);
-  assert.equal(app.dockHidden, false);
+  assert.equal(trays.length, 1);
+  assert.equal(app.dockHidden, true);
 });
 test('Mac menu-bar mode removes the Dock icon and provides a menu-bar entry', async () => {
   const { app, trays } = await launch('darwin', { showInMenuBar: true });
@@ -111,12 +115,12 @@ test('closing a preserved menu-bar window does not duplicate the draft in histor
   assert.equal(writes.length, 1, 'quitting must save the draft exactly once');
   assert.equal(JSON.parse(writes[0].data)[0].text, 'draft');
 });
-test('closing a Dock-mode Mac window destroys it and saves the draft', async () => {
+test('closing a Mac window hides it without destroying the draft', async () => {
   const { windows, ipcHandlers, writes } = await launch();
   await ipcHandlers.get('sync-text')(null, 'draft');
   windows[0].close();
-  assert.equal(windows[0].destroyed, true);
-  assert.equal(writes.length, 1);
+  assert.ok(!windows[0].destroyed);
+  assert.equal(writes.length, 0);
 });
 test('menu can toggle the editor and quit the background app', async () => {
   const { app, trays, windows } = await launch('darwin', { showInMenuBar: true });
@@ -188,7 +192,7 @@ test('shortcut restores a minimized editor', async () => {
 });
 test('enabling the menu-bar preference from settings creates the tray and hides the Dock', async () => {
   const { app, trays, ipcHandlers, writes } = await launch();
-  assert.equal(trays.length, 0);
+  assert.equal(trays.length, 1);
   const applied = await ipcHandlers.get('set-show-in-menu-bar')(null, true);
   assert.equal(applied, true);
   assert.equal(trays.length, 1);
@@ -196,12 +200,12 @@ test('enabling the menu-bar preference from settings creates the tray and hides 
   assert.equal(writes.length, 1);
   assert.equal(JSON.parse(writes[0].data).showInMenuBar, true);
 });
-test('disabling the menu-bar preference from settings restores the Dock and removes the tray', async () => {
+test('legacy menu-bar preferences cannot disable tray-only mode', async () => {
   const { app, trays, ipcHandlers, writes } = await launch('darwin', { showInMenuBar: true });
   const applied = await ipcHandlers.get('set-show-in-menu-bar')(null, false);
   assert.equal(applied, false);
-  assert.equal(trays[0].destroyed, true);
-  assert.equal(app.dockHidden, false);
+  assert.ok(!trays[0].destroyed);
+  assert.equal(app.dockHidden, true);
   assert.equal(writes.length, 1);
   assert.equal(JSON.parse(writes[0].data).showInMenuBar, false);
 });
@@ -233,9 +237,49 @@ test('restore defaults leaves settings and working shortcut intact when the defa
   assert.equal(host.writes.length, 0);
 });
 
-test('restore defaults switches macOS menu-bar mode back to Dock mode', async () => {
+test('restore defaults keeps macOS tray-only mode', async () => {
   const host = await launch('darwin', { showInMenuBar: true });
   await host.ipcHandlers.get('restore-defaults')();
-  assert.equal(host.app.dockHidden, false);
-  assert.equal(host.trays[0].destroyed, true);
+  assert.equal(host.app.dockHidden, true);
+  assert.ok(!host.trays[0].destroyed);
+});
+
+test('Windows has no taskbar icon and resumes only once per hide', async () => {
+  const { windows, trays } = await launch('win32'); const w = windows[0];
+  assert.equal(w.options.skipTaskbar, true);
+  trays[0].emit('double-click'); assert.equal(w.messages.length, 0);
+  w.close(); trays[0].emit('double-click');
+  assert.equal(w.messages.filter(m => m[0] === 'resume-entry').length, 1);
+  trays[0].emit('double-click'); assert.equal(w.messages.length, 1);
+  w.minimized = true; w.emit('minimize'); trays[0].emit('double-click');
+  assert.equal(w.messages.length, 2); assert.equal(w.minimized, false);
+});
+test('Login launch remains hidden and startup targets the portable launcher', async () => {
+  const { app, windows, ipcHandlers } = await launch('win32', null, null, true, true);
+  assert.equal(windows[0].visible, false);
+  assert.equal(await ipcHandlers.get('set-start-at-login')(null, true), true);
+  assert.equal(app.loginOptions.path, 'C:/Apps/eScratch.exe');
+  assert.deepEqual(Array.from(app.loginOptions.args), ['--login']);
+  assert.equal(await ipcHandlers.get('set-start-at-login')(null, false), false);
+});
+test('Development startup registers the application directory', async () => {
+  const { app, ipcHandlers } = await launch('win32');
+  await ipcHandlers.get('set-start-at-login')(null, true);
+  assert.deepEqual(Array.from(app.loginOptions.args), ['/app', '--login']);
+});
+
+test('Word count defaults on, persists off, and restores with defaults', async () => {
+  const { ipcHandlers } = await launch('win32');
+  assert.equal((await ipcHandlers.get('get-config')()).showWordCount, true);
+  assert.equal(await ipcHandlers.get('set-show-word-count')(null, false), false);
+  assert.equal((await ipcHandlers.get('get-config')()).showWordCount, false);
+  assert.equal((await ipcHandlers.get('restore-defaults')()).config.showWordCount, true);
+});
+test('Always on top updates the native window and saved setting', async () => {
+  const { ipcHandlers, windows } = await launch('win32');
+  await ipcHandlers.get('set-always-on-top')(null, true);
+  assert.equal(windows[0].alwaysOnTop, true);
+  assert.equal((await ipcHandlers.get('get-config')()).alwaysOnTop, true);
+  await ipcHandlers.get('set-always-on-top')(null, false);
+  assert.equal(windows[0].alwaysOnTop, false);
 });

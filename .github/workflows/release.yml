@@ -29,6 +29,8 @@ jobs:
 
       - run: npm ci
 
+      - run: node --test tests/menu-bar.cjs tests/mac-release.cjs tests/resume.cjs tests/word-count.cjs
+
       - run: npm run build
 
       - run: npx electron-builder --${{ matrix.platform }} --publish never

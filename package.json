@@ -1,6 +1,6 @@
 {
   "name": "escratch",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "A temporary notepad app for drafting chat messages and prompts before sending",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -51,7 +51,8 @@
     },
     "win": {
       "target": [
-        "nsis"
+        "nsis",
+        "portable"
       ],
       "icon": "build/icon.ico"
     },
@@ -61,6 +62,9 @@
       ],
       "category": "Utility",
       "icon": "build/icon.png"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-electron-win-${arch}-portable.${ext}"
     }
   },
   "devDependencies": {

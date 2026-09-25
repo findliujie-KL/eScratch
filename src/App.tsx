@@ -1,3 +1,4 @@
+import { countWords } from './wordCount'
 import { pasteAsMarkdown } from './markdownPaste'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { HistoryEntry, OcrDownloadProgress, OcrLanguage } from './types'
@@ -84,6 +85,8 @@ function App() {
   const [pasteMessage, setPasteMessage] = useState('')
   const [copyShortcut, setCopyShortcut] = useState('')
   const [copyShortcutInput, setCopyShortcutInput] = useState('')
+  const [showWordCount, setShowWordCount] = useState(true)
+  const wordCount = countWords(text)
   const [alwaysOnTop, setAlwaysOnTop] = useState(false)
   const [recordingTarget, setRecordingTarget] = useState<ShortcutTarget | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
@@ -91,7 +94,11 @@ function App() {
   const [indentType, setIndentType] = useState<'space' | 'tab'>('space')
   const [indentSize, setIndentSize] = useState(2)
   const [showWhitespace, setShowWhitespace] = useState(false)
-  const [showInMenuBar, setShowInMenuBar] = useState(false)
+  const [startAtLogin, setStartAtLogin] = useState(false)
+  const [loginAvailable, setLoginAvailable] = useState(false)
+  const [loginMessage, setLoginMessage] = useState('')
+  const resumeGeneration = useRef(0)
+  const resuming = useRef(false)
   const [ocrLanguages, setOcrLanguages] = useState<OcrLanguage[]>([])
   const [downloadingLanguage, setDownloadingLanguage] = useState<string | null>(null)
   const [ocrDownloadProgress, setOcrDownloadProgress] = useState<OcrDownloadProgress | null>(null)
@@ -120,11 +127,11 @@ function App() {
       setNewShortcutInput(config.newShortcut)
       setMarkdownShortcut(config.markdownShortcut); setMarkdownShortcutInput(config.markdownShortcut); setCopyShortcut(config.copyShortcut)
       setCopyShortcutInput(config.copyShortcut)
-      setAlwaysOnTop(config.alwaysOnTop)
+      setShowWordCount(config.showWordCount); setAlwaysOnTop(config.alwaysOnTop)
       setIndentType(config.indentType)
       setIndentSize(config.indentSize)
       setShowWhitespace(config.showWhitespace)
-      setShowInMenuBar(config.showInMenuBar)
+      setStartAtLogin(config.startAtLogin); setLoginAvailable(config.loginAvailable)
       setHistoryLimitInput(String(config.historyLimit))
     })
   }, [])
@@ -132,6 +139,21 @@ function App() {
   useEffect(() => {
     return window.electronAPI.onOcrDownloadProgress(setOcrDownloadProgress)
   }, [])
+
+  useEffect(() => window.electronAPI.onResumeEntry(() => {
+    if (resuming.current) return
+    const generation = ++resumeGeneration.current
+    resuming.current = true
+    const previous = textareaRef.current?.value || ''
+    const archive = previous.trim() ? window.electronAPI.saveToHistory(previous) : window.electronAPI.getHistory()
+    void archive.then(history => {
+      setHistory(history)
+      if (generation !== resumeGeneration.current || (textareaRef.current?.value || '') !== previous) return
+      setText(''); void window.electronAPI.syncText('')
+      setShowHistory(false); setShowSettings(false); setPasteMenu(null)
+      textareaRef.current?.focus()
+    }).catch(() => setPasteMessage('Could not save the previous entry. Your draft has been kept.')).finally(() => { resuming.current = false })
+  }), [])
 
   // Sync text to main process for copy shortcut
   useEffect(() => {
@@ -190,6 +212,7 @@ function App() {
     const image = imageItem.getAsFile()
     if (!image) return
 
+    const generation = resumeGeneration.current
     setOcrStatus('reading')
     try {
       const recognizedText = await window.electronAPI.recognizeImage(
@@ -200,6 +223,9 @@ function App() {
         return
       }
 
+      if (generation !== resumeGeneration.current) {
+        setHistory(await window.electronAPI.saveToHistory(recognizedText)); setOcrStatus('idle'); return
+      }
       const textarea = textareaRef.current
       const currentValue = textarea?.value ?? text
       const start = textarea?.selectionStart ?? currentValue.length
@@ -315,14 +341,9 @@ function App() {
     setShowWhitespace(applied)
   }, [])
 
-  const handleShowInMenuBarChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const next = e.target.checked
-    const applied = await window.electronAPI.setShowInMenuBar(next)
-    setShowInMenuBar(applied)
-  }, [])
 
   const handleRestoreDefaults = async () => {
-    if (!window.confirm('Restore all settings to their defaults? This resets shortcuts, appearance, indentation, OCR selection to English, and the history limit to 10. Only the newest 10 history entries will be kept. Your current draft and downloaded OCR languages will be preserved.')) return
+    if (!window.confirm('Restore all settings to their defaults? This turns off login startup and resets shortcuts, appearance, indentation, OCR selection to English, and the history limit to 10. Only the newest 10 history entries will be kept. Your current draft and downloaded OCR languages will be preserved.')) return
     setRestoringDefaults(true)
     setRestoreMessage('')
     try {
@@ -330,8 +351,8 @@ function App() {
       setToggleShortcut(config.shortcut); setToggleShortcutInput(config.shortcut)
       setNewShortcut(config.newShortcut); setNewShortcutInput(config.newShortcut)
       setMarkdownShortcut(config.markdownShortcut); setMarkdownShortcutInput(config.markdownShortcut); setCopyShortcut(config.copyShortcut); setCopyShortcutInput(config.copyShortcut)
-      setAlwaysOnTop(config.alwaysOnTop); setIndentType(config.indentType); setIndentSize(config.indentSize)
-      setShowWhitespace(config.showWhitespace); setShowInMenuBar(config.showInMenuBar)
+      setShowWordCount(config.showWordCount); setAlwaysOnTop(config.alwaysOnTop); setIndentType(config.indentType); setIndentSize(config.indentSize)
+      setShowWhitespace(config.showWhitespace); setStartAtLogin(config.startAtLogin); setLoginAvailable(config.loginAvailable)
       setHistoryLimitInput(String(config.historyLimit)); setHistory(restoredHistory)
       setTheme('dark'); setRecordingTarget(null); setClearHistoryArmed(false)
       setOcrLanguages(await window.electronAPI.getOcrLanguages())
@@ -480,6 +501,11 @@ function App() {
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.nativeEvent.isComposing) return
+    if (!showSettings && matchShortcut(e, isMac ? 'Command+Y' : 'Control+H')) {
+      e.preventDefault()
+      if (!e.repeat) { setShowHistory(previous => !previous); setPasteMenu(null) }
+      return
+    }
     if (e.key === 'Escape' && pasteMenu) { setPasteMenu(null); e.preventDefault(); return }
     if (e.target === textareaRef.current && matchShortcut(e, markdownShortcut)) {
       e.preventDefault(); void handleMarkdownPaste(); return
@@ -549,26 +575,16 @@ function App() {
               <line x1="9" y1="15" x2="15" y2="15" />
             </svg>
           </button>
-          <button
-            className={`btn btn-copy ${copyFeedback ? 'copied' : ''}`}
-            onClick={handleCopy}
-            title={copyShortcut ? `Copy (${formatShortcut(copyShortcut)})` : 'Copy'}
-          >
-            {copyFeedback ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-            )}
+          <button className={`btn btn-pin ${alwaysOnTop ? 'active' : ''}`} aria-label="Always on top" aria-pressed={alwaysOnTop} title={`Always on top: ${alwaysOnTop ? 'on' : 'off'}`} onClick={async () => {
+            try { setAlwaysOnTop(await window.electronAPI.setAlwaysOnTop(!alwaysOnTop)) }
+            catch { setPasteMessage('Could not change Always on Top. Please try again.') }
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3h8M9 3v6l-3 4v2h12v-2l-3-4V3M12 15v7"/></svg>
           </button>
           <button
             className={`btn btn-history ${showHistory ? 'active' : ''}`}
             onClick={() => { setShowHistory(!showHistory); setShowSettings(false) }}
-            title="History"
+            title={isMac ? 'History (⌘Y)' : 'History (Ctrl+H)'}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10" />
@@ -761,6 +777,12 @@ function App() {
                 </div>
               </div>
               <div className="settings-item">
+                <div className="settings-row"><div className="settings-label">Show word count</div><label className="switch"><input aria-label="Show word count" type="checkbox" checked={showWordCount} onChange={async e => {
+                  try { setShowWordCount(await window.electronAPI.setShowWordCount(e.target.checked)) }
+                  catch { setPasteMessage('Could not save the word count setting.') }
+                }}/><span className="switch-slider"/></label></div>
+              </div>
+              <div className="settings-item">
                 <div className="settings-label">Indent</div>
                 <div className="settings-row" style={{ marginBottom: 8 }}>
                   <span className="setting-description">Type</span>
@@ -912,27 +934,17 @@ function App() {
                 </button>
                 {ocrLanguageError && <div className="ocr-language-error">{ocrLanguageError}</div>}
               </div>
-              {isMac && (
-                <div className="settings-item">
-                  <div className="settings-row">
-                    <div>
-                      <div className="settings-label">Show in Menu Bar</div>
-                      <div className="setting-description">
-                        Keep the editor in the menu bar instead of the Dock. Turn off to show it as a regular Dock app.
-                      </div>
-                    </div>
-                    <label className="switch" htmlFor="show-in-menu-bar-toggle">
-                      <input
-                        id="show-in-menu-bar-toggle"
-                        type="checkbox"
-                        checked={showInMenuBar}
-                        onChange={handleShowInMenuBarChange}
-                      />
-                      <span className="switch-slider" />
-                    </label>
-                  </div>
+              <div className="settings-item">
+                <div className="settings-row">
+                  <div><div className="settings-label">Start at login</div><div className="setting-description">Start quietly in the tray. Keep portable builds in the same location.</div></div>
+                  <label className="switch"><input aria-label="Start at login" type="checkbox" checked={startAtLogin} disabled={!loginAvailable} onChange={async e => {
+                    try { setStartAtLogin(await window.electronAPI.setStartAtLogin(e.target.checked)); setLoginMessage('') }
+                    catch { setLoginMessage('Could not update the login setting. Please try again.') }
+                  }}/><span className="switch-slider"/></label>
                 </div>
-              )}
+                {!loginAvailable && <div className="shortcut-hint">Available on Windows and macOS.</div>}
+                {loginMessage && <div role="status" className="shortcut-hint">{loginMessage}</div>}
+              </div>
               <div className="settings-item">
                 <div className="settings-label">Toggle Window</div>
                 <div className="shortcut-current">

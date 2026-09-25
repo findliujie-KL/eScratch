@@ -10,6 +10,8 @@ let win: BrowserWindow | null = null
 let tray: Tray | null = null
 let isQuitting = false
 let menuBarEnabled = false
+let resumePending = false
+let initialLoginLaunch = process.argv.includes("--login")
 let currentText = ''
 let ocrWorker: Awaited<ReturnType<typeof createWorker>> | null = null
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
@@ -170,6 +172,7 @@ interface Config {
   newShortcut: string
   markdownShortcut: string
   copyShortcut: string
+  showWordCount: boolean
   alwaysOnTop: boolean
   indentType: 'space' | 'tab'
   indentSize: number
@@ -191,6 +194,7 @@ function defaultConfig(): Config {
     newShortcut: defaultNewShortcut,
     copyShortcut: defaultCopyShortcut,
     markdownShortcut: "Control+Shift+V",
+    showWordCount: true,
     alwaysOnTop: false,
     indentType: 'space',
     indentSize: 2,
@@ -214,6 +218,7 @@ function loadConfig(): Config {
         copyShortcut: typeof saved.copyShortcut === 'string' && shortcutValidator.test(saved.copyShortcut)
           ? saved.copyShortcut
           : defaultCopyShortcut,
+        showWordCount: saved.showWordCount !== false,
         alwaysOnTop: saved.alwaysOnTop === true,
         indentType: saved.indentType === 'tab' ? 'tab' : 'space',
         indentSize: [2, 4, 6, 8].includes(Number(saved.indentSize)) ? Number(saved.indentSize) : 2,
@@ -310,20 +315,24 @@ function createWindow(config: Config) {
     trafficLightPosition: { x: 15, y: 15 },
     frame: false,
     show: false,
-    skipTaskbar: false,
+    skipTaskbar: true,
     alwaysOnTop: config.alwaysOnTop,
   })
 
   win.on('ready-to-show', () => {
+    if (initialLoginLaunch) { initialLoginLaunch = false; return }
     win?.show()
     win?.focus()
   })
 
 
+  win.on('minimize', () => { resumePending = true; copyText(); win?.hide() })
+  win.on('restore', () => { if (resumePending) showWindow() })
   win.on('close', (event) => {
-    if (!isQuitting && (process.platform === 'win32' || menuBarEnabled)) {
+    if (!isQuitting) {
       event.preventDefault()
       copyText()
+      resumePending = true
       win?.hide()
       return
     }
@@ -347,6 +356,9 @@ function showWindow() {
     createWindow(loadConfig())
     return
   }
+  const resume = resumePending || win.isMinimized() || !win.isVisible()
+  resumePending = false
+  if (resume) win.webContents.send('resume-entry')
   if (win.isMinimized()) win.restore()
   win.show()
   win.focus()
@@ -358,12 +370,11 @@ function toggleWindow() {
     return
   }
   if (win.isMinimized()) {
-    win.restore()
-    win.show()
-    win.focus()
+    showWindow()
     return
   }
   if (win.isVisible()) {
+    resumePending = true
     copyText()
     if (process.platform === 'darwin') {
       app.hide()
@@ -429,16 +440,27 @@ function createTray() {
   if (process.platform === 'darwin') app.dock.hide()
 }
 
-function applyMenuBarPreference(enabled: boolean) {
-  menuBarEnabled = process.platform === 'darwin' && enabled
-  if (process.platform !== 'darwin') return
-  if (menuBarEnabled) {
-    createTray()
-  } else {
-    tray?.destroy()
-    tray = null
-    app.dock.show()
+function applyMenuBarPreference(_enabled: boolean) {
+  menuBarEnabled = true
+  createTray()
+}
+
+function loginOptions() {
+  // Portable Electron runs from a temporary extraction folder. Register the
+  // original portable EXE, never that temporary inner executable.
+  return {
+    path: process.env.PORTABLE_EXECUTABLE_FILE || process.execPath,
+    args: app.isPackaged ? ['--login'] : [app.getAppPath(), '--login'],
   }
+}
+function loginState() {
+  const loginAvailable = process.platform === 'win32' || process.platform === 'darwin'
+  return { loginAvailable, startAtLogin: loginAvailable && app.getLoginItemSettings(loginOptions()).openAtLogin }
+}
+function setStartAtLogin(enabled: boolean) {
+  if (!loginState().loginAvailable) throw new Error('Login startup is supported on Windows and macOS.')
+  app.setLoginItemSettings({ ...loginOptions(), name: 'eScratch.Electron', openAtLogin: enabled })
+  return loginState().startAtLogin
 }
 
 app.on('before-quit', () => {
@@ -446,9 +468,10 @@ app.on('before-quit', () => {
 })
 
 app.whenReady().then(() => {
+  if (process.platform === 'darwin' && app.getLoginItemSettings().wasOpenedAtLogin) initialLoginLaunch = true
   const config = loadConfig()
   applyMenuBarPreference(config.showInMenuBar)
-  if (process.platform === 'win32') createTray()
+  createTray()
   createWindow(config)
   registerShortcut(config)
 
@@ -591,8 +614,9 @@ app.whenReady().then(() => {
     return getOcrLanguageState()
   })
 
+  ipcMain.handle('set-start-at-login', (_event, enabled: boolean) => setStartAtLogin(enabled === true))
   ipcMain.handle('get-config', () => {
-    return loadConfig()
+    return { ...loadConfig(), ...loginState() }
   })
 
   ipcMain.handle('restore-defaults', async () => {
@@ -604,6 +628,7 @@ app.whenReady().then(() => {
     }
     try {
       await resetOcrWorker()
+      if (loginState().loginAvailable) setStartAtLogin(false)
       saveConfig(config)
     } catch (error) {
       if (previous.shortcut !== config.shortcut) globalShortcut.unregister(config.shortcut)
@@ -613,7 +638,7 @@ app.whenReady().then(() => {
     win?.setAlwaysOnTop(config.alwaysOnTop)
     applyMenuBarPreference(config.showInMenuBar)
     const history = loadLimitedHistory()
-    return { config, history }
+    return { config: { ...config, ...loginState() }, history }
   })
 
   ipcMain.handle('set-shortcut', (_event, shortcut: string) => {
@@ -644,6 +669,9 @@ app.whenReady().then(() => {
     return true
   })
 
+  ipcMain.handle('set-show-word-count', (_event, value: boolean) => {
+    const config = loadConfig(); config.showWordCount = value === true; saveConfig(config); return config.showWordCount
+  })
   ipcMain.handle('set-always-on-top', (_event, alwaysOnTop: boolean) => {
     const config = loadConfig()
     config.alwaysOnTop = alwaysOnTop === true
@@ -685,8 +713,7 @@ app.on('activate', () => {
   if (!win) {
     createWindow(loadConfig())
   } else {
-    win.show()
-    win.focus()
+    showWindow()
   }
 })
 
