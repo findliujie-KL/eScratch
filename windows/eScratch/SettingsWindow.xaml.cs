@@ -10,17 +10,21 @@ namespace eScratch;
 public partial class SettingsWindow : UserControl
 {
     public event EventHandler? Closed;
-    public void Close() { download?.Cancel(); Closed?.Invoke(this, EventArgs.Empty); }
+    public void Close() { feedbackNotice.Dispose(); downloadNotice.Dispose(); download?.Cancel(); Closed?.Invoke(this, EventArgs.Empty); }
     private readonly StateStore store;
     private readonly OcrService ocr;
     private readonly Func<string, bool> registerShortcut;
     private readonly Action changed;
     private CancellationTokenSource? download;
     private bool filtering;
+    private readonly TransientNotice feedbackNotice;
+    private readonly TransientNotice downloadNotice;
     public SettingsWindow(StateStore store, OcrService ocr, Func<string, bool> registerShortcut, Action changed)
     {
         this.store = store; this.ocr = ocr; this.registerShortcut = registerShortcut; this.changed = changed;
         InitializeComponent();
+        feedbackNotice = new TransientNotice(Feedback);
+        downloadNotice = new TransientNotice(DownloadStatus);
         var s = store.State.Settings;
         TopmostBox.IsChecked = s.AlwaysOnTop; LightBox.IsChecked = s.LightTheme; WhitespaceBox.IsChecked = s.ShowWhitespace;
         HistoryLimitBox.Text = s.HistoryLimit.ToString();
@@ -37,9 +41,9 @@ public partial class SettingsWindow : UserControl
         e.Handled = true;
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin) return;
-        if (Keyboard.Modifiers == ModifierKeys.None) { Feedback.Text = "Include Ctrl, Alt, Shift or Windows in a shortcut."; return; }
-        try { ((TextBox)sender).Text = new KeyGestureConverter().ConvertToInvariantString(new KeyGesture(key, Keyboard.Modifiers))!; Feedback.Text = ""; }
-        catch (Exception) { Feedback.Text = "That key combination cannot be used."; }
+        if (Keyboard.Modifiers == ModifierKeys.None) { feedbackNotice.Show("Include Ctrl, Alt, Shift or Windows in a shortcut."); return; }
+        try { ((TextBox)sender).Text = new KeyGestureConverter().ConvertToInvariantString(new KeyGesture(key, Keyboard.Modifiers))!; feedbackNotice.Show(""); }
+        catch (Exception) { feedbackNotice.Show("That key combination cannot be used."); }
     }
     private void RestoreDefaultsClick(object sender, RoutedEventArgs e)
     {
@@ -48,28 +52,28 @@ public partial class SettingsWindow : UserControl
             "Restore defaults", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         try
         {
-            if (!store.RestoreDefaults(registerShortcut)) { Feedback.Text = "The default shortcut is in use by another app. Close that app and retry. No settings were changed."; return; }
+            if (!store.RestoreDefaults(registerShortcut)) { feedbackNotice.Show("The default shortcut is in use by another app. Close that app and retry. No settings were changed."); return; }
             changed(); Close();
         }
-        catch (Exception ex) { Feedback.Text = "Could not restore defaults: " + ex.Message; }
+        catch (Exception ex) { feedbackNotice.Show("Could not restore defaults: " + ex.Message); }
     }
     private void SaveClick(object sender, RoutedEventArgs e)
     {
-        if (!int.TryParse(HistoryLimitBox.Text, out var limit) || limit < 1 || limit > 1000) { Feedback.Text = "Enter a history limit between 1 and 1000."; return; }
+        if (!int.TryParse(HistoryLimitBox.Text, out var limit) || limit < 1 || limit > 1000) { feedbackNotice.Show("Enter a history limit between 1 and 1000."); return; }
         try
         {
             var shortcuts = new[] { ToggleBox.Text, NewBox.Text, CopyBox.Text, MarkdownBox.Text }.Select(Hotkey.Parse).ToArray();
-            if (shortcuts[3].Key == Key.V && shortcuts[3].Modifiers == ModifierKeys.Control) { Feedback.Text = "Ctrl+V is reserved for normal Paste."; return; }
-            if (shortcuts.Select(k => (k.Key, k.Modifiers)).Distinct().Count() != 4) { Feedback.Text = "Choose different shortcuts for each action."; return; }
+            if (shortcuts[3].Key == Key.V && shortcuts[3].Modifiers == ModifierKeys.Control) { feedbackNotice.Show("Ctrl+V is reserved for normal Paste."); return; }
+            if (shortcuts.Select(k => (k.Key, k.Modifiers)).Distinct().Count() != 4) { feedbackNotice.Show("Choose different shortcuts for each action."); return; }
         }
-        catch { Feedback.Text = "Record a valid shortcut in each field."; return; }
+        catch { feedbackNotice.Show("Record a valid shortcut in each field."); return; }
         if (limit < store.State.History.Count && MessageBox.Show(Window.GetWindow(this), $"Keep only the newest {limit} history entries? Older entries will be removed.", "Reduce history", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
-        if (!registerShortcut(ToggleBox.Text)) { Feedback.Text = "That global shortcut is already in use. Please choose another."; return; }
+        if (!registerShortcut(ToggleBox.Text)) { feedbackNotice.Show("That global shortcut is already in use. Please choose another."); return; }
         var s = store.State.Settings;
         s.Shortcut = ToggleBox.Text; s.NewShortcut = NewBox.Text; s.CopyShortcut = CopyBox.Text; s.MarkdownShortcut = MarkdownBox.Text;
         s.AlwaysOnTop = TopmostBox.IsChecked == true; s.LightTheme = LightBox.IsChecked == true; s.ShowWhitespace = WhitespaceBox.IsChecked == true;
         s.HistoryLimit = limit; s.IndentType = IndentBox.SelectedIndex == 1 ? "tab" : "space"; s.IndentSize = (IndentSizeBox.SelectedIndex + 1) * 2;
-        try { store.Save(); changed(); Close(); } catch (Exception ex) { Feedback.Text = "Could not save: " + ex.Message; }
+        try { store.Save(); changed(); Close(); } catch (Exception ex) { feedbackNotice.Show("Could not save: " + ex.Message); }
     }
     private void SearchLanguages(object sender, TextChangedEventArgs e)
     {
@@ -98,7 +102,7 @@ public partial class SettingsWindow : UserControl
                 remove.Click += (_, _) =>
                 {
                     try { ocr.Remove(language.Code); store.State.Settings.OcrLanguages.Remove(language.Code); RefreshInstalled(); store.Save(); }
-                    catch (Exception ex) { DownloadStatus.Text = ex.Message; }
+                    catch (Exception ex) { downloadNotice.Show(ex.Message); }
                 };
                 row.Children.Add(remove);
             }
@@ -107,26 +111,26 @@ public partial class SettingsWindow : UserControl
             {
                 var selected = store.State.Settings.OcrLanguages;
                 if (check.IsChecked == true) { if (!selected.Contains(language.Code)) selected.Add(language.Code); }
-                else if (selected.Count == 1) { check.IsChecked = true; DownloadStatus.Text = "Keep at least one OCR language selected."; return; }
+                else if (selected.Count == 1) { check.IsChecked = true; downloadNotice.Show("Keep at least one OCR language selected."); return; }
                 else selected.Remove(language.Code);
-                try { store.Save(); } catch (Exception ex) { DownloadStatus.Text = ex.Message; }
+                try { store.Save(); } catch (Exception ex) { downloadNotice.Show(ex.Message); }
             };
             row.Children.Add(check); InstalledLanguages.Children.Add(row);
         }
     }
     private async void DownloadClick(object sender, RoutedEventArgs e)
     {
-        if (LanguagePicker.SelectedItem is not OcrLanguage language) { DownloadStatus.Text = "Search and select a language from the list first."; return; }
-        if (ocr.Installed(language.Code)) { DownloadStatus.Text = "That language is already installed."; return; }
+        if (LanguagePicker.SelectedItem is not OcrLanguage language) { downloadNotice.Show("Search and select a language from the list first."); return; }
+        if (ocr.Installed(language.Code)) { downloadNotice.Show("That language is already installed."); return; }
         download = new CancellationTokenSource();
         DownloadButton.IsEnabled = false; LanguagePicker.IsEnabled = false; CancelDownloadButton.IsEnabled = true;
         try
         {
-            await ocr.DownloadAsync(language.Code, new Progress<string>(s => DownloadStatus.Text = s), download.Token);
-            RefreshInstalled(); DownloadStatus.Text = $"{language.Name} installed. Select its checkbox to use it.";
+            await ocr.DownloadAsync(language.Code, new Progress<string>(s => downloadNotice.Show(s, persistent: true)), download.Token);
+            RefreshInstalled(); downloadNotice.Show($"{language.Name} installed. Select its checkbox to use it.");
         }
-        catch (OperationCanceledException) { DownloadStatus.Text = "Download canceled."; }
-        catch (Exception ex) { DownloadStatus.Text = "Download failed. You can retry. " + ex.Message; }
+        catch (OperationCanceledException) { downloadNotice.Show("Download canceled."); }
+        catch (Exception ex) { downloadNotice.Show("Download failed. You can retry. " + ex.Message); }
         finally { download.Dispose(); download = null; DownloadButton.IsEnabled = true; LanguagePicker.IsEnabled = true; CancelDownloadButton.IsEnabled = false; }
     }
     private void CancelDownloadClick(object sender, RoutedEventArgs e) => download?.Cancel();

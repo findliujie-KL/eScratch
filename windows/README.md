@@ -60,7 +60,7 @@ a generated image with native OCR. `--network` additionally downloads Spanish,
 recognizes with two languages, removes it, and verifies cancellation cleanup.
 The WPF integration checks also exercise image paste, undo, editing during OCR,
 theme initialization, image-only and PNG-only routed paste commands, and language search after changing a selection. The full
-suite currently contains 62 offline checks (66 with network checks). It does not modify your application data or
+suite currently contains 68 offline checks (72 with network checks). It does not modify your application data or
 clipboard.
 
 ## Portable releases

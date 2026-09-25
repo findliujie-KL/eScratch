@@ -18,9 +18,25 @@ internal static class UiChecks
     {
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/eScratch;component/Theme.xaml") });
+        var noticeTarget = new TextBlock();
+        using (var notice = new TransientNotice(noticeTarget))
+        {
+            notice.Show("Done", 0.03);
+            PumpUntil(() => noticeTarget.Text == "");
+            check(noticeTarget.Text == "", "Completed notices expire");
+            notice.Show("Old", 0.03);
+            notice.Show("Working", persistent: true);
+            var until = DateTime.UtcNow.AddMilliseconds(80);
+            PumpUntil(() => DateTime.UtcNow >= until);
+            check(noticeTarget.Text == "Working", "Old expiry cannot clear new progress");
+            notice.Show("Failed", 0.03);
+            PumpUntil(() => noticeTarget.Text == "");
+            check(noticeTarget.Text == "", "Completed error replaces progress and expires");
+        }
         var store = new StateStore(Path.Combine(directory, "ui"));
         IDataObject clipboardData = new DataObject(DataFormats.Bitmap, image);
-        var window = new MainWindow(store, () => clipboardData);
+        bool clipboardBusy = false;
+        var window = new MainWindow(store, () => clipboardBusy ? throw new System.Runtime.InteropServices.COMException("Clipboard busy", unchecked((int)0x800401D0)) : clipboardData);
         try
         {
             check(store.State.Settings.LightTheme && window.Background is SolidColorBrush brush && brush.Color.R == 0xef, "WPF defaults to the original light palette");
@@ -34,6 +50,11 @@ internal static class UiChecks
             ((Button)window.FindName("SettingsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((Border)window.FindName("PanelBackdrop")).Visibility == Visibility.Collapsed, "Clicking Settings again dismisses the panel");
             var editor = (TextEditor)window.FindName("Editor");
+            clipboardBusy = true;
+            check(!ApplicationCommands.Paste.CanExecute(null, editor.TextArea), "Busy clipboard disables Paste without crashing");
+            clipboardBusy = false;
+            clipboardData = new DataObject(DataFormats.UnicodeText, "text");
+            check(ApplicationCommands.Paste.CanExecute(null, editor.TextArea), "Text Paste recovers after clipboard contention");
             clipboardData = new DataObject();
             clipboardData.SetData(DataFormats.UnicodeText, "pigdog");
             clipboardData.SetData(DataFormats.Html, "<p>dog</p>");
@@ -41,6 +62,8 @@ internal static class UiChecks
             editor.Text = "Before OLD After"; editor.Select(7, 3);
             ((MenuItem)editor.ContextMenu.Items[1]).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             check(editor.Text == "Before ~~pig~~dog After", "Markdown context menu replaces selection and recovers deletion");
+            PumpUntil(() => ((TextBlock)window.FindName("Status")).Text != "Pasted as Markdown");
+            check(((TextBlock)window.FindName("Status")).Text == "", "Markdown success message clears automatically");
             editor.Undo(); check(editor.Text == "Before OLD After", "Markdown paste is one undoable edit");
             clipboardData = new DataObject(DataFormats.Bitmap, image);
             var status = (TextBlock)window.FindName("Status");

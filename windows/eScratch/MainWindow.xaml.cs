@@ -21,6 +21,7 @@ public partial class MainWindow : Window
     private readonly Forms.NotifyIcon tray;
     private readonly DispatcherTimer saveTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private readonly DispatcherTimer copyFeedbackTimer = new() { Interval = TimeSpan.FromMilliseconds(1500) };
+    private readonly TransientNotice statusNotice;
     private Hotkey? hotkey;
     private bool quitting, reading;
     private long revision;
@@ -31,13 +32,14 @@ public partial class MainWindow : Window
         store = stateStore ?? new StateStore();
         ocr = new OcrService(store.DirectoryPath);
         InitializeComponent();
+        statusNotice = new TransientNotice(Status);
         Icon = BitmapFrame.Create(new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "icon.ico")));
         Editor.Text = store.State.Draft;
         ApplySettings();
-        Status.Text = store.Warning ?? "";
+        statusNotice.Show(store.Warning ?? "");
         Placeholder.Visibility = Editor.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         saveTimer.Tick += (_, _) => { saveTimer.Stop(); SaveState(); };
-        copyFeedbackTimer.Tick += (_, _) => { copyFeedbackTimer.Stop(); CopyButton.ClearValue(Button.ForegroundProperty); if (Status.Text == "Copied") Status.Text = ""; };
+        copyFeedbackTimer.Tick += (_, _) => { copyFeedbackTimer.Stop(); CopyButton.ClearValue(Button.ForegroundProperty); };
         DataObject.AddPastingHandler(Editor, OnPaste);
         var menu = new ContextMenu();
         var paste = new MenuItem { Header = "Paste", Command = ApplicationCommands.Paste, CommandTarget = Editor.TextArea, InputGestureText = "Ctrl+V" };
@@ -62,7 +64,7 @@ public partial class MainWindow : Window
         SourceInitialized += (_, _) =>
         {
             hotkey = new Hotkey(new WindowInteropHelper(this).Handle, Toggle);
-            if (!hotkey.Register(store.State.Settings.Shortcut)) Status.Text = "Shortcut is in use by another app. Choose another shortcut in Settings.";
+            if (!hotkey.Register(store.State.Settings.Shortcut)) statusNotice.Show("Shortcut is in use by another app. Choose another shortcut in Settings.");
         };
         Closing += OnClosing;
         Loaded += (_, _) => Editor.Focus();
@@ -71,7 +73,7 @@ public partial class MainWindow : Window
     private void SaveState()
     {
         store.State.Draft = Editor.Text;
-        try { store.Save(); } catch (Exception ex) { Status.Text = "Could not save: " + ex.Message; }
+        try { store.Save(); } catch (Exception ex) { statusNotice.Show("Could not save: " + ex.Message); }
     }
     private void EditorChanged(object? sender, EventArgs e)
     {
@@ -106,8 +108,8 @@ public partial class MainWindow : Window
     private bool CopyDraft()
     {
         if (string.IsNullOrWhiteSpace(Editor.Text)) return true;
-        try { Clipboard.SetDataObject(Editor.Text, true); Status.Text = "Copied"; CopyButton.SetResourceReference(Button.ForegroundProperty, "Success"); copyFeedbackTimer.Stop(); copyFeedbackTimer.Start(); return true; }
-        catch (Exception ex) { Status.Text = "Clipboard is busy. Please try again. " + ex.Message; return false; }
+        try { Clipboard.SetDataObject(Editor.Text, true); statusNotice.Show("Copied", 1.5); CopyButton.SetResourceReference(Button.ForegroundProperty, "Success"); copyFeedbackTimer.Stop(); copyFeedbackTimer.Start(); return true; }
+        catch (Exception ex) { statusNotice.Show("Clipboard is busy. Please try again. " + ex.Message); return false; }
     }
     private void Toggle() { if (IsVisible && WindowState != WindowState.Minimized) HideToTray(); else RestoreWindow(); }
     private void HideToTray() { if (!CopyDraft()) return; SaveState(); settingsWindow?.Close(); Hide(); }
@@ -115,14 +117,14 @@ public partial class MainWindow : Window
     private void OnClosing(object? sender, CancelEventArgs e) { if (!quitting) { e.Cancel = true; HideToTray(); } }
     private void Quit()
     {
-        SaveState(); quitting = true; saveTimer.Stop(); copyFeedbackTimer.Stop(); hotkey?.Dispose();
+        SaveState(); quitting = true; saveTimer.Stop(); copyFeedbackTimer.Stop(); statusNotice.Dispose(); hotkey?.Dispose();
         tray.Visible = false; tray.Icon?.Dispose(); tray.Dispose();
         settingsWindow?.Close(); Application.Current.Shutdown();
     }
     private void NewClick(object sender, RoutedEventArgs e)
     {
         try { store.Remember(Editor.Text); Editor.Clear(); SaveState(); BackClick(sender, e); }
-        catch (Exception ex) { Status.Text = "Could not save history: " + ex.Message; }
+        catch (Exception ex) { statusNotice.Show("Could not save history: " + ex.Message); }
     }
     private void CopyClick(object sender, RoutedEventArgs e) => CopyDraft();
     private void BackClick(object sender, RoutedEventArgs e)
@@ -167,7 +169,7 @@ public partial class MainWindow : Window
     {
         if (HistoryList.SelectedItem is not HistoryEntry entry) return;
         try { store.Remember(Editor.Text); Editor.Text = entry.Text; SaveState(); BackClick(sender, e); }
-        catch (Exception ex) { Status.Text = ex.Message; }
+        catch (Exception ex) { statusNotice.Show(ex.Message); }
     }
     private void DeleteClick(object sender, RoutedEventArgs e)
     {
@@ -216,18 +218,23 @@ public partial class MainWindow : Window
             var start = Editor.SelectionStart;
             Editor.Document.Replace(start, Editor.SelectionLength, text);
             Editor.CaretOffset = start + text.Length; Editor.Focus();
-            Status.Text = "Pasted as Markdown";
+            statusNotice.Show("Pasted as Markdown", 2);
         }
-        catch (Exception ex) { Status.Text = "Could not paste as Markdown: " + ex.Message; }
+        catch (Exception ex) { statusNotice.Show("Could not paste as Markdown: " + ex.Message); }
     }
     private void CanPasteImage(object sender, CanExecuteRoutedEventArgs e)
     {
         if (e.Command != ApplicationCommands.Paste) return;
+        // Handle every Paste query, including text and clipboard contention, so
+        // AvalonEdit's default query cannot throw while another app owns the clipboard.
+        e.Handled = true;
+        e.CanExecute = false;
+        if (Editor.IsReadOnly || reading) return;
         try
         {
-            if (!ClipboardImage.IsAvailable(readClipboard())) return;
-            e.CanExecute = !Editor.IsReadOnly && !reading;
-            e.Handled = true;
+            var data = readClipboard();
+            e.CanExecute = data != null && (ClipboardImage.IsAvailable(data) ||
+                data.GetDataPresent(DataFormats.UnicodeText) || data.GetDataPresent(DataFormats.Text));
         }
         catch (System.Runtime.InteropServices.ExternalException) { }
     }
@@ -241,7 +248,7 @@ public partial class MainWindow : Window
             e.Handled = true;
             if (!Editor.IsReadOnly) await PasteImageAsync(data!);
         }
-        catch (Exception ex) { e.Handled = true; Status.Text = "Could not read the clipboard: " + ex.Message; }
+        catch (Exception ex) { e.Handled = true; statusNotice.Show("Could not read the clipboard: " + ex.Message); }
     }
     private async void OnPaste(object sender, DataObjectPastingEventArgs e)
     {
@@ -251,10 +258,10 @@ public partial class MainWindow : Window
     }
     private async System.Threading.Tasks.Task PasteImageAsync(IDataObject data)
     {
-        if (reading) { Status.Text = "OCR is already reading an image."; return; }
+        if (reading) { statusNotice.Show("Reading screenshot…", persistent: true); return; }
         var expectedRevision = revision;
         var start = Editor.SelectionStart; var length = Editor.SelectionLength;
-        reading = true; Status.Text = "Reading screenshot…";
+        reading = true; statusNotice.Show("Reading screenshot…", persistent: true);
         try
         {
             var candidates = ClipboardImage.ReadCandidates(data);
@@ -277,18 +284,18 @@ public partial class MainWindow : Window
             }
             if (!recognized && lastError != null) throw lastError;
             if (quitting) return;
-            if (string.IsNullOrWhiteSpace(text)) { Status.Text = "No text found. Try a clearer screenshot or another OCR language."; return; }
+            if (string.IsNullOrWhiteSpace(text)) { statusNotice.Show("No text found. Try a clearer screenshot or another OCR language."); return; }
             if (revision != expectedRevision)
             {
                 // Never replace a newer draft or selection while asynchronous OCR is running.
-                store.Remember(text); Status.Text = "OCR text saved to History because the draft changed while reading.";
+                store.Remember(text); statusNotice.Show("OCR text saved to History because the draft changed while reading.");
                 if (HistoryPanel.IsVisible) RefreshHistory();
                 return;
             }
             Editor.Document.Replace(start, length, text);
-            Editor.CaretOffset = start + text.Length; Editor.Focus(); Status.Text = "Screenshot text inserted";
+            Editor.CaretOffset = start + text.Length; Editor.Focus(); statusNotice.Show("Screenshot text inserted", 2);
         }
-        catch (Exception ex) { Status.Text = "OCR failed: " + ex.Message; }
+        catch (Exception ex) { statusNotice.Show("OCR failed: " + ex.Message); }
         finally { reading = false; }
     }
 }
