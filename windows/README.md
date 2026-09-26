@@ -164,3 +164,5 @@ look like deletions. Insertions are not inferred. RTF presence enables the heuri
 HTML supplies the formatting. Clipboard content is processed locally.
 
 Clipboard OCR prefers PNG, normalizes pixel format and transparency, and retries alternate image representations when recognition returns no text. Bitmap-only raw RGB repair handles producers with an unset alpha channel.
+
+Portable distribution policy: publish the complete application folder as a ZIP. Keep all DLLs, assets and native OCR libraries beside the executable. Do not use single-file publishing or a self-extracting portable EXE. Settings/history remain in the Windows user profile; this packaging does not change data storage.

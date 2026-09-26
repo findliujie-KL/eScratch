@@ -17,7 +17,7 @@ $project = Join-Path $PSScriptRoot 'eScratch/eScratch.csproj'
 if ($Publish) {
     $flavor = if ($SelfContained) { 'standalone' } else { 'compact' }
     $output = Join-Path $PSScriptRoot "artifacts/$flavor"
-    & $dotnet publish $project -c Release -r win-x64 --self-contained $SelfContained.ToString().ToLowerInvariant() -o $output
+    & $dotnet publish $project -c Release -r win-x64 --self-contained $SelfContained.ToString().ToLowerInvariant() -p:PublishSingleFile=false -o $output
     if ($LASTEXITCODE -ne 0) { throw 'Publish failed.' }
     Compress-Archive -Path "$output/*" -DestinationPath (Join-Path $PSScriptRoot "artifacts/eScratch-windows-x64-$flavor.zip") -Force
 } else {
