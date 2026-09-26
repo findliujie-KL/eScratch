@@ -12,11 +12,11 @@ https://youtu.be/qwj9fr77vQg
 
 This fork publishes Electron builds for Windows, macOS, and Linux, plus a native WPF version for Windows. Choose a version from the [Releases](https://github.com/findliujie-KL/eScratch/releases) page:
 
-- **Electron portable (main branch):** download the asset ending in `-portable.exe` from an Electron release and run it. No installation or separate .NET runtime is required. English OCR is bundled; additional languages can be downloaded in Settings.
+- **Electron portable (main branch):** download the asset ending in `-portable.zip` from an Electron release, extract the entire folder, and run `eScratch.exe`. No installation or separate .NET runtime is required. English OCR is bundled; additional languages can be downloaded in Settings.
 - **Electron installer / Mac / Linux:** use the Windows Setup EXE, the DMG matching your Mac (arm64 for Apple silicon or x64 for Intel), or the Linux AppImage from the newest Electron release.
 - **WPF for Windows (wpf-rewrite branch):** choose the compact Setup EXE or extract the entire portable ZIP from the newest stable WPF release. The compact installer can download .NET 10 Desktop Runtime (x64) and Visual C++ runtime when needed. The portable ZIP includes .NET; native OCR still needs the Visual C++ x64 runtime.
 
-The Electron portable executable extracts its application files to a temporary folder when launched. Settings, draft history, and downloaded OCR languages are stored in your Windows user profile, not beside the executable. Closing the editor hides it to the tray; use the tray menu to quit fully.
+The Electron portable ZIP contains the executable, runtime DLLs, resources and OCR dependencies. Keep the entire extracted folder together. Settings, draft history, and downloaded OCR languages are stored in your Windows user profile, not beside the executable. Closing the editor hides it to the tray; use the tray menu to quit fully.
 
 These builds are unsigned; Mac builds are not notarized.
 

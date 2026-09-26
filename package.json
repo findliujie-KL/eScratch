@@ -52,9 +52,10 @@
     "win": {
       "target": [
         "nsis",
-        "portable"
+        "zip"
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "artifactName": "${productName}-${version}-electron-win-${arch}-portable.${ext}"
     },
     "linux": {
       "target": [
@@ -63,8 +64,8 @@
       "category": "Utility",
       "icon": "build/icon.png"
     },
-    "portable": {
-      "artifactName": "${productName}-${version}-electron-win-${arch}-portable.${ext}"
+    "nsis": {
+      "artifactName": "${productName} Setup ${version}.${ext}"
     }
   },
   "devDependencies": {

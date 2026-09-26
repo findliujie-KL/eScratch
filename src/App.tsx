@@ -658,7 +658,7 @@ function App() {
               catch { setPasteMessage('Could not read the clipboard.') }
             }}
             onScroll={syncOverlayScroll}
-            placeholder="Type Here or Simply Paste..."
+            placeholder={`Type Here or Simply Paste...\n${formatShortcut(toggleShortcut || (isMac ? 'Command+J' : 'Control+J'))} to toggle window · ${formatShortcut(newShortcut || (isMac ? 'Command+T' : 'Control+T'))} for new scratch · ${isMac ? 'Cmd+Y' : 'Ctrl+H'} for history`}
             spellCheck={false}
             autoFocus
           />

@@ -41,6 +41,7 @@ jobs:
           path: |
             release/*.dmg
             release/*.exe
+            release/*.zip
             release/*.AppImage
 
   publish:

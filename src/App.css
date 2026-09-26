@@ -172,6 +172,7 @@ body {
 
 .editor::placeholder {
   color: var(--text-muted);
+  white-space: pre-wrap;
 }
 
 .ocr-status {
