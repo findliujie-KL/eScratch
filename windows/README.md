@@ -1,166 +1,105 @@
-# eScratch for Windows (WPF)
+# eScratch for Windows (.NET Framework 4.8)
 
-A native C# / WPF rewrite on .NET 10, targeting Windows x64. The Electron app is maintained separately on the main branch.
-No Chromium, Node.js, web server, or Electron is used by this application.
+Compatibility work lives on wpf-net48. The .NET 10 application remains on
+wpf-rewrite and Electron remains on main. This build targets Windows 10/11 x64,
+uses the Windows .NET Framework CLR, and needs no .NET 10 Desktop Runtime.
+.NET Framework 4.8.1 also satisfies the runtime requirement.
 
-## Features
+## Features retained
 
-- Global show/hide shortcut (Ctrl+J by default); hiding copies the draft.
-- Tray-only operation (no taskbar icon), optional startup at Windows login, and a blank new entry on restoring from the tray (previous text is saved to History).
-- Close button hides to the tray. Double-click the tray icon to restore;
-  right-click and choose Quit to exit completely.
-- Plain-text editor with Unicode, undo/redo, word wrap, configurable indentation,
-  visible whitespace, and an optional live Word-compatible word count.
-- New draft (Ctrl+T) saves the current text to history. Copy draft uses Ctrl+Shift+C.
-- Ctrl+H toggles History while the editor or History panel is focused. The toolbar pin toggles Always on Top.
-- Configurable shortcuts, always-on-top, and dark/light themes (light by default).
-- Frameless title bar, compact icon toolbar, and right-side history/settings
-  panels matching the original app. Drag the title bar to move the window;
-  resize from its edges. Click outside a panel or press Escape to dismiss it.
-- History restore, individual deletion, Clear All, and a configurable 1–1000 entry
-  limit (default 10). Reducing the limit prompts before removing older entries.
-- Screenshot paste runs native Tesseract OCR in the background and inserts the
-  result at the selection. If the draft changes during recognition, the result is
-  saved to history instead of overwriting the new text.
-- English OCR bundled for offline use; searchable dropdown of 163 official fast
-  language/script models, download progress, cancellation, removal, and multiple
-  selected recognition languages. Images and draft text never leave the PC.
-- Draft autosave, atomic state writes, corrupt-data backup, and single instance.
-- Restore defaults with confirmation, resetting preferences while preserving the draft
-  and installed OCR models. The newest 10 history entries are retained.
+- Tray-only UI, Ctrl+J show/hide, copy on hide, and configurable global shortcut.
+- Start with Windows (off by default), starting quietly in the tray.
+- Restoring from the tray archives the prior nonblank draft and opens a blank one.
+- Light/dark themes, toolbar Always on Top pin, word wrap, indentation and visible whitespace.
+- Ctrl+H History, Ctrl+T New, Ctrl+Shift+C Copy and configurable Ctrl+Shift+V Markdown paste.
+- History limit (10 by default), restore/delete/clear, and restore default settings.
+- Offline native Tesseract screenshot OCR, PNG/Bitmap fallbacks and alpha repair.
+- Searchable OCR language downloads, multiple recognition languages, cancellation and removal.
+- Markdown conversion and best-effort deleted-text recovery from Word clipboard formats.
+- Optional live word count, verified against the same 249 Word reference cases.
+- Draft autosave, atomic replacement, corrupt-data backup, timed notices and single-instance guard.
 
 ## Build and run
 
-Install the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-and the [Visual C++ x64 Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe).
-The scripts also recognize a workspace SDK at `.tools/dotnet`.
+Install a .NET SDK that supports C# 12 (8 or later), .NET Framework 4.8 or later,
+and the Visual C++ x64 runtime. NuGet supplies Framework 4.8 reference assemblies.
+A workspace SDK at .tools/dotnet is supported; its version does not change the
+target runtime. Visual Studio 2022 can also build the project.
 
-From the repository root in PowerShell:
+From the repository root:
 
 ```powershell
 ./windows/run.ps1
 ```
 
-The first build restores NuGet packages and downloads the English model from the
-official `tesseract-ocr/tessdata_fast` repository. Subsequent ordinary development
-builds use the local copies. WPF changes need compilation, but do not require
-packaging or an installer. Visual Studio's WPF Hot Reload can speed up UI changes.
+The development executable is windows/eScratch/bin/Debug/net48/eScratch.exe.
+It launches directly; do not pass it to dotnet.exe. Close any other eScratch WPF
+instance from its tray before switching builds. Close Electron or change the
+global shortcut if it already owns Ctrl+J.
 
-Close the Electron app before running WPF to free Ctrl+J. A conflicting global
-shortcut is reported in the status bar; choose another shortcut in Settings.
-
-## Checks
+## Tests
 
 ```powershell
-dotnet run --project windows/eScratch.Tests
-dotnet run --project windows/eScratch.Tests -- --network
+dotnet build windows/eScratch.Tests/eScratch.Tests.csproj
+./windows/eScratch.Tests/bin/Debug/net48/eScratch.Tests.exe
+./windows/eScratch.Tests/bin/Debug/net48/eScratch.Tests.exe --network
 ```
 
-The console runner exits nonzero on failure. The default checks use temporary
-data, exercise persistence and actual Windows hotkey registration, and recognize
-a generated image with native OCR. `--network` additionally downloads Spanish,
-recognizes with two languages, removes it, and verifies cancellation cleanup.
-The WPF integration checks also exercise image paste, undo, editing during OCR,
-theme initialization, image-only and PNG-only routed paste commands, and language search after changing a selection. The full
-suite includes Word-derived multilingual counting fixtures, startup configuration, tray behavior, and status-message expiry. It does not modify your application data or
-clipboard.
+The runner checks the actual Framework CLR and target metadata, .NET 10-format
+data compatibility, atomic replacement failure, supplementary Unicode characters,
+persistence, Word counting, hotkeys, real native OCR and WPF paste/UI behavior.
+The network option downloads a language, performs multilingual OCR, removes it,
+and tests cancellation. Tests use isolated temporary profiles, not your clipboard
+or application notes. Local validation used Windows 11 with Framework 4.8.1;
+the compile target is the Framework 4.8 reference API surface.
 
-## Portable releases
+## Portable ZIP and compact installer
 
 ```powershell
 ./windows/build.ps1 -Publish
-./windows/build.ps1 -Publish -SelfContained
+./windows/build-installer.ps1
 ```
 
-Outputs are in `windows/artifacts`:
+The installer script uses .tools/inno/ISCC.exe by default, or accepts -Compiler
+with the path to Inno Setup 7. Outputs are isolated under windows/artifacts/net48:
 
-- `compact`: smaller, requires the .NET 10 Desktop Runtime (x64).
-- `standalone`: includes the .NET runtime, so a separate .NET installation is not needed.
+- portable/: complete application folder, including English OCR and library dependencies.
+- eScratch-2.1.0-net48-win-x64-portable.zip: extract all files and run eScratch.exe.
+- installer/eScratch-2.1.0-net48-win-x64-setup.exe: compact per-user installer.
 
-Both include native OCR and English data and require the Visual C++ x64 runtime.
-Extract the entire ZIP and run `eScratch.exe`; the EXE must stay beside its assets
-and native libraries. These are unsigned portable packages, not installers.
-License texts are included under `Assets/Licenses`.
+Both need Framework 4.8+ and the Visual C++ x64 runtime for native OCR. No separate
+self-contained flavor is needed: the goal is to use Windows Framework rather
+than bundle a modern .NET runtime. The EXE is not a standalone single-file app;
+keep its .config, DLLs, Assets and x64 folders alongside it. Packages are unsigned.
 
-## Compact Windows installer
+Setup checks the Framework Release registry value in both registry views against
+Microsoft's 528040 minimum, accepting 4.8.1 and later. It offers to download/install
+missing prerequisites, open Microsoft's download pages, or install the app only.
+The Framework web bootstrapper is approximately 1.4 MB and downloads further
+components from Microsoft; it can require elevation and a restart. The app never
+requires admin rights for ordinary use. Hashes and official URLs are pinned in
+installer/prerequisites.json. Framework and VC++ installers are not bundled.
 
-Install Inno Setup 7, then run:
+/CHECKONLY="C:/path/report.txt" reports prerequisite detection without installing.
+For unattended setup, use /PREREQUISITES=download or /PREREQUISITES=skip with
+/VERYSILENT; missing prerequisites without an explicit choice fail safely.
 
-```powershell
-./windows/build-installer.ps1 -Compiler 'C:/Program Files (x86)/Inno Setup 7/ISCC.exe'
-```
+The installer uses the existing WPF app identity and per-user destination,
+%LOCALAPPDATA%/Programs/eScratch. Installing this variant replaces that WPF app;
+to compare builds, run the extracted portable package after exiting the other one.
 
-The compiler argument is optional when the compiler is at `.tools/inno/ISCC.exe`.
-The output is `windows/artifacts/installer/eScratch-2.1.0-win-x64-setup.exe`
-(approximately 6.2 MB). This includes English OCR and only the x64 native libraries;
-it excludes debug symbols and the shared .NET runtime.
+## Data compatibility
 
-Setup installs per user under `%LOCALAPPDATA%/Programs/eScratch`. It checks for
-stable .NET 10 Desktop and Core runtimes in the x64 registry entries, and the
-Visual C++ x64 runtime needed by native OCR. A core-only .NET installation,
-.NET Framework, x86 runtime, or another .NET major version does not satisfy the check.
-When components are missing, the user can:
+The profile remains %LOCALAPPDATA%/eScratch/Wpf. Notes, settings, history and native
+OCR model files retain the existing schema/paths. The login registry value and
+single-instance identity are shared with the .NET 10 build. No data migration or
+model re-download is needed. Keep portable builds at their registered location;
+after moving the EXE or switching a portable login-startup build, toggle Start
+with Windows off/on to register its new path. Uninstall preserves application data.
 
-- Download and install missing components (about 60 MB for .NET, 26 MB for VC++).
-- Open Microsoft's download pages and install manually, then click Next again.
-- Install the app only and provide missing components later.
+Framework-specific compatibility code replaces newer file-overwrite, hashing,
+Unicode and stream APIs. System.Text.Json and its support libraries are bundled
+using their Framework-compatible assets. Their 10.x library package version is
+not a dependency on the .NET 10 runtime. Third-party notices ship with both packages.
 
-Shared component installation may require administrator consent. Downloads use
-pinned official Microsoft URLs and SHA-256 checksums from `installer/prerequisites.json`.
-Refresh those pins for future runtime servicing releases after verifying Microsoft's
-release metadata and Authenticode signatures. No runtime installers are bundled.
-Download failures allow retry or changing the option; launch is disabled when
-components are missing or a runtime installation requested a restart.
-Uninstall removes the app but preserves drafts, settings, OCR downloads, and shared runtimes.
-The installer is unsigned.
-
-For unattended installation, explicitly use `/PREREQUISITES=download` or
-`/PREREQUISITES=skip` with `/VERYSILENT`. Without an explicit choice, silent setup
-fails if prerequisites are missing. `/CHECKONLY="C:/path/report.txt"` writes detection
-results and exits without installation (the exit code indicates setup did not run).
-
-## Data and migration
-
-WPF data lives in `%LOCALAPPDATA%/eScratch/Wpf` (`state.json` and `tessdata/`).
-On first launch, settings and history are copied from the Electron profile under
-`%APPDATA%/eScratch`, `escratch`, or `one-time-editor`. Electron data is not modified.
-English starts selected; additional languages should be downloaded again because
-the native rewrite uses Tesseract fast models rather than the JavaScript models.
-Electron's theme was stored separately, so the WPF theme initially defaults to light.
-
-For an isolated testing profile:
-
-```powershell
-eScratch.exe --data-directory C:/Temp/eScratch-test
-```
-
-## Scope
-
-This is a Windows x64 implementation. macOS/Linux behavior is intentionally absent.
-The UI uses native Windows controls rather than reproducing the web UI pixel for
-pixel. Existing icon artwork is retained. The language catalog is a checked-in
-snapshot of all `.traineddata` files from `tessdata_fast`; model downloads require
-internet access, while recognition after download works offline.
-
-
-
-
-## Paste as Markdown
-
-Right-click in the editor for Paste (including screenshot OCR) or Paste as Markdown.
-Ctrl+Shift+V invokes Paste as Markdown while the editor has focus. Change it in
-Settings; Restore defaults resets it to Ctrl+Shift+V. Ctrl+V remains normal Paste.
-
-Markdown paste converts basic headings, bold/italic/strikethrough, links, and lists
-to visible plain-text Markdown. Plain-text-only content is left unchanged; image-only
-clipboards use normal Paste instead. Complex document layouts are not reproduced.
-
-When plain text, HTML, and RTF are present together, it attempts deletion recovery
-by comparing normalized plain text against the HTML text. A unique deletion-only
-alignment produces strikethrough, e.g. pigdog versus dog becomes ~~pig~~dog.
-Ambiguous alignments fall back to ordinary Markdown conversion. This is a heuristic,
-not Word revision metadata: unrelated differences between clipboard formats can also
-look like deletions. Insertions are not inferred. RTF presence enables the heuristic;
-HTML supplies the formatting. Clipboard content is processed locally.
-
-Clipboard OCR prefers PNG, normalizes pixel format and transparency, and retries alternate image representations when recognition returns no text. Bitmap-only raw RGB repair handles producers with an unset alpha channel.
+Portable distribution policy: publish the complete application folder as a ZIP. Keep all DLLs, assets and native OCR libraries beside the executable. Do not use single-file publishing or a self-extracting portable EXE. Settings/history remain in the Windows user profile; this packaging does not change data storage.

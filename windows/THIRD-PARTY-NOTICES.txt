@@ -9,7 +9,15 @@ Tesseract fast language models (Apache-2.0) — https://github.com/tesseract-ocr
 
 English language data is downloaded by build.ps1 and bundled in the output.
 Additional language data is downloaded on request from tessdata_fast.
-The .NET runtime is distributed by Microsoft under its accompanying licenses
-in standalone packages. Framework-dependent packages require the .NET 10
-Desktop Runtime (x64). Native OCR requires the Microsoft Visual C++ 2015–2022
-Redistributable (x64).
+System.Text.Json, System.Text.Encodings.Web, System.IO.Pipelines,
+Microsoft.Bcl.AsyncInterfaces, System.Buffers, System.Memory,
+System.Numerics.Vectors, System.Runtime.CompilerServices.Unsafe and
+System.Threading.Tasks.Extensions (MIT) — https://github.com/dotnet/runtime
+These are the .NET Framework-compatible library builds, bundled with the app;
+their package version numbers do not imply a dependency on a .NET 10 runtime.
+License and third-party notices are in Assets/Licenses/DotNet-Libraries-*.txt.
+
+This build runs on Windows .NET Framework 4.8 or later. The Windows framework
+is not redistributed inside the portable ZIP. The compact installer can fetch
+Microsoft's signed .NET Framework 4.8 web installer only if needed.
+Native OCR requires the Microsoft Visual C++ x64 Redistributable.

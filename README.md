@@ -1,24 +1,36 @@
-# eScratch for Windows
+# eScratch for Windows — .NET Framework 4.8
 
-A lightweight native Windows scratchpad built with C# and WPF on .NET 10.
-This branch contains the Windows application only. The Electron implementation
-is maintained separately on the `main` branch.
+A lightweight native Windows scratchpad built with C# and WPF, targeting .NET Framework 4.8.
+This compatibility branch does not require .NET 10 to run. The .NET 10 version
+remains on `wpf-rewrite`; Electron remains on `main`.
+This branch contains the Windows application only.
 
 ## Install
 
-Download the newest stable WPF release from [GitHub Releases](https://github.com/findliujie-KL/eScratch/releases). Choose the compact Windows x64 installer or the portable ZIP. The installer can download missing .NET 10 Desktop and Visual C++ runtimes. The portable ZIP includes .NET; extract all files together and keep the Visual C++ x64 runtime installed for OCR. Settings and history are stored in your Windows profile.
+Build the portable ZIP and compact installer with the commands below. These net48
+packages are separate from the existing .NET 10 GitHub releases.
 
-For macOS, Linux, or Electron Windows builds, see the [main branch](https://github.com/findliujie-KL/eScratch/tree/main).
+- **Portable:** extract the entire ZIP and run eScratch.exe. Keep its config, DLLs,
+  Assets and x64 folders together. Requires .NET Framework 4.8 or later and the
+  Visual C++ x64 runtime for OCR.
+- **Compact installer:** checks for Framework 4.8+ and Visual C++; offers downloads
+  from Microsoft when components are missing. No .NET 10 Desktop Runtime check.
+- Windows 10/11 x64 remain the supported target. No installer or portable package
+  embeds a modern .NET runtime. Settings stay in your Windows profile.
 
 ## Develop
 
-Install the .NET 10 SDK and Visual C++ x64 Redistributable, then run:
+Install a .NET SDK supporting C# 12 (8 or later), .NET Framework 4.8 or later,
+and Visual C++ x64 Redistributable, then run:
 
 ```powershell
 ./windows/run.ps1
 ```
 
-The scripts also support a workspace SDK in `.tools/dotnet`.
+The scripts also support a workspace SDK in `.tools/dotnet`. The SDK is a build
+tool only; the generated EXE runs directly on Windows .NET Framework. The 4.8
+reference assemblies are restored through NuGet, so a separate targeting pack
+is not necessary.
 Open `windows/eScratch.slnx` in Visual Studio to edit the application.
 
 ## Features
@@ -39,12 +51,17 @@ Open `windows/eScratch.slnx` in Visual Studio to edit the application.
 ## Build and test
 
 ```powershell
-dotnet run --project windows/eScratch.Tests
-./windows/build.ps1 -Publish -SelfContained
+dotnet build windows/eScratch.Tests/eScratch.Tests.csproj
+./windows/eScratch.Tests/bin/Debug/net48/eScratch.Tests.exe
+./windows/build.ps1 -Publish
+./windows/build-installer.ps1
 ```
 
 See [the Windows development guide](windows/README.md) for prerequisites,
-compact builds, data migration, and testing details.
+package names, compatibility details, and testing.
+
+Existing .NET 10 WPF drafts, settings, history and downloaded OCR languages use
+the same data directory and schema. Exit the other WPF version before switching.
 
 ### Word count
 

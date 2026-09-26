@@ -59,17 +59,17 @@ public static class MarkdownPaste
         for (int i = 0; i < parts.Count; i++)
             foreach (char c in parts[i].Text)
             {
-                if (char.IsWhiteSpace(c)) { if (final.Length == 0 || final[^1] == ' ') continue; final.Append(' '); }
+                if (char.IsWhiteSpace(c)) { if (final.Length == 0 || final[final.Length - 1] == ' ') continue; final.Append(' '); }
                 else final.Append(c);
                 map.Add(i);
             }
-        if (final.Length > 0 && final[^1] == ' ') { final.Length--; map.RemoveAt(map.Count - 1); }
+        if (final.Length > 0 && final[final.Length - 1] == ' ') { final.Length--; map.RemoveAt(map.Count - 1); }
         // Word includes list labels in plain text but represents them structurally in HTML.
         var comparisonPlain = root.Descendants("li").Any()
             ? Regex.Replace(plain, @"(?m)^[ \t]*(?:\d+[.)]|[•·])[^\S\r\n]+", "") : plain;
         var inserts = hasRtf ? RecoverDeletions(Normalize(comparisonPlain), final.ToString()) : new Dictionary<int, string>();
         var before = new Dictionary<int, string>();
-        foreach (var pair in inserts) before[pair.Key < map.Count ? map[pair.Key] : map.Count > 0 ? map[^1] + 1 : parts.Count] = pair.Value;
+        foreach (var pair in inserts) before[pair.Key < map.Count ? map[pair.Key] : map.Count > 0 ? map[map.Count - 1] + 1 : parts.Count] = pair.Value;
         var result = new StringBuilder();
         for (int i = 0; i <= parts.Count; i++)
         {

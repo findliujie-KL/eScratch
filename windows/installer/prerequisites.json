@@ -1,13 +1,14 @@
 {
-  "desktop": {
-    "sha256": "55A67D8476CDE95A9CC43A95803B4F54446E7C9251ED22AA6421D4908174AE84",
-    "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.12/windowsdesktop-runtime-10.0.12-win-x64.exe",
-    "version": "10.0.12",
-    "bytes": 60032984
-  },
   "vc": {
     "sha256": "CC0FF0EB1DC3F5188AE6300FAEF32BF5BEEBA4BDD6E8E445A9184072096B713B",
     "url": "https://download.visualstudio.microsoft.com/download/pr/bd1c8d9d-ba95-4eee-bc6e-df1fcc876373/CC0FF0EB1DC3F5188AE6300FAEF32BF5BEEBA4BDD6E8E445A9184072096B713B/VC_redist.x64.exe",
     "bytes": 25635768
+  },
+  "framework": {
+    "version": "4.8",
+    "minimumRelease": 528040,
+    "url": "https://download.visualstudio.microsoft.com/download/pr/2d6bb6b2-226a-4baa-bdec-798822606ff1/9b7b8746971ed51a1770ae4293618187/ndp48-web.exe",
+    "sha256": "0BBA3094588C4BFEC301939985222A20B340BF03431563DEC8B2B4478B06FFFA",
+    "bytes": 1439328
   }
 }

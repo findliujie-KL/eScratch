@@ -17,7 +17,7 @@ public static class LoginStartup
     public static void SetEnabled(bool enabled)
     {
         using var key = Registry.CurrentUser.CreateSubKey(RunKey, true);
-        if (enabled) key.SetValue(ValueName, Command(Environment.ProcessPath ?? throw new InvalidOperationException("Application path is unavailable."), Assembly.GetExecutingAssembly().Location));
+        if (enabled) key.SetValue(ValueName, Command(Assembly.GetExecutingAssembly().Location, Assembly.GetExecutingAssembly().Location));
         else key.DeleteValue(ValueName, false);
     }
 }

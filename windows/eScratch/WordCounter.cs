@@ -80,9 +80,9 @@ public static class WordCounter
     {
         int count = 0;
         bool inRun = false, canAttachVariation = false;
-        foreach (var rune in text.EnumerateRunes())
+        foreach (var scalar in Compatibility.CodePoints(text))
         {
-            int c = rune.Value;
+            int c = scalar;
             if (c is 0x200B or 0xFEFF) continue;
             if (c is >= 0x09 and <= 0x0D or 0x20 or 0xA0 or 0x2005 or 0x2013 or 0x2014 or 0x2022 or 0x3000)
             { inRun = false; canAttachVariation = false; continue; }

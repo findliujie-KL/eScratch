@@ -1,7 +1,7 @@
-name: WPF Windows build
+name: WPF .NET Framework 4.8 build
 on:
   push:
-    branches: [wpf-rewrite]
+    branches: [wpf-net48]
     paths: ['windows/**', '.github/workflows/wpf.yml']
   pull_request:
     paths: ['windows/**', '.github/workflows/wpf.yml']
@@ -13,20 +13,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '8.0.x'
       - name: Build and obtain English OCR data
         shell: pwsh
         run: ./windows/build.ps1
       - name: Verify persistence, shortcuts and native OCR
         shell: pwsh
-        run: dotnet run --project windows/eScratch.Tests
-      - name: Publish compact portable package
+        run: |
+          dotnet build windows/eScratch.Tests/eScratch.Tests.csproj
+          ./windows/eScratch.Tests/bin/Debug/net48/eScratch.Tests.exe
+      - name: Build .NET Framework portable package
         shell: pwsh
         run: ./windows/build.ps1 -Publish
-      - name: Publish standalone portable package
-        shell: pwsh
-        run: ./windows/build.ps1 -Publish -SelfContained
       - uses: actions/upload-artifact@v4
         with:
-          name: eScratch-WPF-Windows-x64
-          path: windows/artifacts/*.zip
+          name: eScratch-WPF-net48-Windows-x64
+          path: windows/artifacts/net48/*.zip

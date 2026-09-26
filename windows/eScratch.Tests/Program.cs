@@ -22,6 +22,7 @@ internal static class Program
         Directory.CreateDirectory(folder);
         try
         {
+            CompatibilityChecks.Run(folder, Check);
             using var cases = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "markdown-cases.json")));
             foreach (var test in cases.RootElement.EnumerateArray())
             {
@@ -121,6 +122,11 @@ internal static class Program
                 using var canceled = new CancellationTokenSource(); canceled.Cancel();
                 try { ocr.DownloadAsync("spa", new Progress<string>(), canceled.Token).GetAwaiter().GetResult(); } catch (OperationCanceledException) { }
                 Check(!ocr.Installed("spa") && !Directory.GetFiles(ocr.LanguageDirectory, "*.download").Any(), "Canceled download leaves no installed or partial model");
+                using var interrupted = new CancellationTokenSource();
+                bool interruptedDownload = false;
+                try { ocr.DownloadAsync("spa", new ImmediateProgress(_ => interrupted.Cancel()), interrupted.Token).GetAwaiter().GetResult(); }
+                catch (OperationCanceledException) { interruptedDownload = true; }
+                Check(interruptedDownload && !ocr.Installed("spa") && !Directory.GetFiles(ocr.LanguageDirectory, "*.download").Any(), "Canceling an active Framework download releases the response and removes partial data");
             }
             var resetStore = new StateStore(Path.Combine(folder, "reset"));
             resetStore.State.Settings.HistoryLimit = 20;
@@ -140,5 +146,9 @@ internal static class Program
         }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
         finally { Directory.Delete(folder, true); }
+    }
+    private sealed class ImmediateProgress(Action<string> report) : IProgress<string>
+    {
+        public void Report(string value) => report(value);
     }
 }

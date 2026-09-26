@@ -46,17 +46,20 @@ public sealed class OcrService
         {
             // Only catalog entries can be requested; no clipboard or note content is sent.
             using var response = await Client.GetAsync("https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/" + code + ".traineddata", HttpCompletionOption.ResponseHeadersRead, cancellation);
+            // Framework streams do not always interrupt an in-flight read when
+            // canceled. Disposing the response releases the underlying request.
+            using var registration = cancellation.Register(() => response.Dispose());
             response.EnsureSuccessStatusCode();
             var length = response.Content.Headers.ContentLength;
-            await using (var input = await response.Content.ReadAsStreamAsync(cancellation))
-            await using (var output = File.Create(temporary))
+            using (var input = await response.Content.ReadAsStreamAsync())
+            using (var output = File.Create(temporary))
             {
                 var buffer = new byte[81920]; long received = 0; int count;
-                while ((count = await input.ReadAsync(buffer, cancellation)) != 0)
+                while ((count = await input.ReadAsync(buffer, 0, buffer.Length, cancellation)) != 0)
                 {
                     received += count;
                     if (received > 100 * 1024 * 1024) throw new InvalidDataException("Language download exceeded the size limit.");
-                    await output.WriteAsync(buffer.AsMemory(0, count), cancellation);
+                    await output.WriteAsync(buffer, 0, count, cancellation);
                     progress.Report(length > 0 ? $"Downloading… {received * 100 / length}%" : $"Downloading… {received / 1048576d:0.0} MB");
                 }
                 if (received < 1024 || (length.HasValue && received != length)) throw new InvalidDataException("Incomplete language download.");
@@ -72,8 +75,10 @@ public sealed class OcrService
             }
             finally { Directory.Delete(validationDirectory, true); }
             cancellation.ThrowIfCancellationRequested();
-            File.Move(temporary, destination, true);
+            Compatibility.ReplaceFile(temporary, destination);
         }
+        catch (Exception ex) when (cancellation.IsCancellationRequested && ex is not OutOfMemoryException)
+        { throw new OperationCanceledException("Language download canceled.", ex, cancellation); }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
     public Task<string> RecognizeAsync(byte[] image, IEnumerable<string> selected)
@@ -83,7 +88,7 @@ public sealed class OcrService
         return Task.Run(() =>
         {
             // Dispose after each operation to release OCR memory while the app is idle.
-            using var engine = new TesseractEngine(LanguageDirectory, string.Join('+', codes), EngineMode.LstmOnly);
+            using var engine = new TesseractEngine(LanguageDirectory, string.Join("+", codes), EngineMode.LstmOnly);
             using var pix = Pix.LoadFromMemory(image);
             using var page = engine.Process(pix);
             return page.GetText().Trim();

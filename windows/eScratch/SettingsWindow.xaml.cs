@@ -84,7 +84,7 @@ public partial class SettingsWindow : UserControl
         filtering = true;
         var text = textBox.Text; var position = textBox.CaretIndex;
         LanguagePicker.SelectedItem = null;
-        LanguagePicker.ItemsSource = ocr.Catalog.Where(l => l.ToString().Contains(text, StringComparison.OrdinalIgnoreCase)).ToList();
+        LanguagePicker.ItemsSource = ocr.Catalog.Where(l => l.ToString().IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
         LanguagePicker.IsDropDownOpen = true;
         textBox.Text = text; textBox.CaretIndex = position;
         filtering = false;

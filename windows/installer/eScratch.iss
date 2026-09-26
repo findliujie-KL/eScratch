@@ -10,8 +10,8 @@ MinVersion=10.0
 WizardStyle=modern
 SetupIconFile=..\eScratch\Assets\icon.ico
 UninstallDisplayIcon={app}\eScratch.exe
-OutputDir=..\artifacts\installer
-OutputBaseFilename=eScratch-{#AppVersion}-win-x64-setup
+OutputDir=..\artifacts\net48\installer
+OutputBaseFilename=eScratch-{#AppVersion}-net48-win-x64-setup
 Compression=lzma2/max
 SolidCompression=yes
 DisableProgramGroupPage=yes
@@ -22,7 +22,7 @@ RestartApplications=no
 Name: desktopicon; Description: "Create a desktop shortcut"; Flags: unchecked
 
 [Files]
-Source: "..\artifacts\compact\*"; DestDir: "{app}"; Excludes: "*.pdb,x86\*"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\artifacts\net48\portable\*"; DestDir: "{app}"; Excludes: "*.pdb,x86\*"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\eScratch"; Filename: "{app}\eScratch.exe"
@@ -37,28 +37,17 @@ var
   Downloads: TDownloadWizardPage;
   RebootRequired: Boolean;
 
-function HasFrameworkInView(Root: Integer; Name: String): Boolean;
-var
-  Versions: TArrayOfString;
-  I: Integer;
-  Version: Int64;
+function HasNetFrameworkInView(Root: Integer): Boolean;
+var Release: Cardinal;
 begin
-  Result := False;
-  if RegGetValueNames(Root, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\' + Name, Versions) then
-    for I := 0 to GetArrayLength(Versions) - 1 do
-      if (Pos('10.0.', Versions[I]) = 1) and (Pos('-', Versions[I]) = 0) then
-        if StrToVersion(Versions[I], Version) then
-          Result := True;
+  Result := RegQueryDWordValue(Root,
+    'SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full', 'Release', Release)
+    and (Release >= 528040);
 end;
 
-function HasFramework(Name: String): Boolean;
+function HasNetFramework: Boolean;
 begin
-  Result := HasFrameworkInView(HKLM32, Name) or HasFrameworkInView(HKLM64, Name);
-end;
-
-function HasDesktop: Boolean;
-begin
-  Result := HasFramework('Microsoft.WindowsDesktop.App') and HasFramework('Microsoft.NETCore.App');
+  Result := HasNetFrameworkInView(HKLM32) or HasNetFrameworkInView(HKLM64);
 end;
 
 function HasVcInView(Root: Integer): Boolean;
@@ -80,13 +69,13 @@ end;
 
 function CanLaunch: Boolean;
 begin
-  Result := HasDesktop and HasVc and not RebootRequired;
+  Result := HasNetFramework and HasVc and not RebootRequired;
 end;
 
 function StatusText: String;
 begin
-  Result := '.NET 10 Desktop Runtime (x64): ';
-  if HasDesktop then Result := Result + 'installed' else Result := Result + 'missing (about 60 MB download)';
+  Result := '.NET Framework 4.8 or later: ';
+  if HasNetFramework then Result := Result + 'installed' else Result := Result + 'missing (web installer; additional files download from Microsoft)';
   Result := Result + #13#10 + 'Visual C++ runtime (x64), for OCR: ';
   if HasVc then Result := Result + 'installed' else Result := Result + 'missing (about 26 MB download)';
 end;
@@ -120,12 +109,12 @@ begin
   if CurPageID = Prerequisites.ID then
     Prerequisites.SubCaptionLabel.Caption := StatusText + #13#10#13#10 +
       'Automatic installation needs internet access and may ask for administrator approval.' + #13#10 +
-      'The app cannot run without .NET; OCR also needs Visual C++. After manual installation, click Next again.';
+      'The app needs .NET Framework 4.8 or later; OCR also needs Visual C++. No .NET 10 runtime is used. After manual installation, click Next again.';
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := (PageID = Prerequisites.ID) and HasDesktop and HasVc;
+  Result := (PageID = Prerequisites.ID) and HasNetFramework and HasVc;
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -133,32 +122,32 @@ var Code: Integer;
 begin
   Result := True;
   if (CurPageID = Prerequisites.ID) and (Prerequisites.SelectedValueIndex = 1) then begin
-    if not HasDesktop then
-      ShellExec('open', 'https://dotnet.microsoft.com/en-us/download/dotnet/10.0', '', '', SW_SHOWNORMAL, ewNoWait, Code);
+    if not HasNetFramework then
+      ShellExec('open', 'https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48', '', '', SW_SHOWNORMAL, ewNoWait, Code);
     if not HasVc then
       ShellExec('open', 'https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist', '', '', SW_SHOWNORMAL, ewNoWait, Code);
-    Result := HasDesktop and HasVc;
+    Result := HasNetFramework and HasVc;
     CurPageChanged(CurPageID);
   end;
 end;
 
-procedure InstallComponent(FileName: String);
+procedure InstallComponent(FileName, Parameters: String);
 var Code: Integer;
 begin
   if not ShellExec('runas', ExpandConstant('{tmp}\') + FileName,
-    '/install /passive /norestart', '', SW_SHOWNORMAL, ewWaitUntilTerminated, Code) then
+    Parameters, '', SW_SHOWNORMAL, ewWaitUntilTerminated, Code) then
     RaiseException('Could not start the component installer. ' + SysErrorMessage(Code));
-  if Code = 3010 then RebootRequired := True
+  if (Code = 3010) or (Code = 1641) then RebootRequired := True
   else if Code <> 0 then RaiseException('Component installation failed (code ' + IntToStr(Code) + ').');
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
-var Mode: String; DesktopMissing, VcMissing: Boolean;
+var Mode: String; FrameworkMissing, VcMissing: Boolean;
 begin
   Result := '';
-  DesktopMissing := not HasDesktop;
+  FrameworkMissing := not HasNetFramework;
   VcMissing := not HasVc;
-  if not (DesktopMissing or VcMissing) then Exit;
+  if not (FrameworkMissing or VcMissing) then Exit;
   Mode := Lowercase(ExpandConstant('{param:PREREQUISITES|}'));
   if WizardSilent then begin
     if Mode = 'skip' then Exit;
@@ -168,7 +157,7 @@ begin
     end;
   end else if Prerequisites.SelectedValueIndex = 2 then Exit;
   Downloads.Clear;
-  if DesktopMissing then Downloads.Add('{#DesktopUrl}', 'windowsdesktop-runtime.exe', '{#DesktopHash}');
+  if FrameworkMissing then Downloads.Add('{#FrameworkUrl}', 'ndp48-web.exe', '{#FrameworkHash}');
   if VcMissing then Downloads.Add('{#VcUrl}', 'vc_redist.x64.exe', '{#VcHash}');
   Downloads.Show;
   try
@@ -183,9 +172,9 @@ begin
   end;
   if Result <> '' then Exit;
   try
-    if DesktopMissing then InstallComponent('windowsdesktop-runtime.exe');
-    if VcMissing then InstallComponent('vc_redist.x64.exe');
-    if not (HasDesktop and HasVc) then
+    if FrameworkMissing then InstallComponent('ndp48-web.exe', '/passive /norestart');
+    if VcMissing then InstallComponent('vc_redist.x64.exe', '/install /passive /norestart');
+    if not (HasNetFramework and HasVc) then
       Result := 'Required components are not detected yet. Restart Windows if requested, then run setup again.';
   except
     Result := GetExceptionMessage + ' Go Back to choose another option, or retry.';

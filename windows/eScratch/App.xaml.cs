@@ -13,7 +13,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
         var directory = e.Args.Length == 2 && e.Args[0] == "--data-directory" ? e.Args[1] : null;
-        var profile = directory == null ? "" : "." + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(directory).ToUpperInvariant())))[..16];
+        var profile = directory == null ? "" : "." + Compatibility.ProfileHash(directory);
         instance = new Mutex(true, "Local\\eScratch.Wpf" + profile, out bool first);
         if (!first) { MessageBox.Show("eScratch is already running. Double-click its tray icon to open it.", "eScratch"); Shutdown(); return; }
         try

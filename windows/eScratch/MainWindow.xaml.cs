@@ -105,6 +105,7 @@ public partial class MainWindow : Window
         };
         foreach (var color in colors) Application.Current.Resources[color.Key] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(s.LightTheme ? color.Value.Light : color.Value.Dark));
         NewButton.ToolTip = "New (" + s.NewShortcut.Replace("Control", "Ctrl") + ")";
+        ShortcutHint.Text = s.Shortcut.Replace("Control", "Ctrl") + " to toggle window · " + s.NewShortcut.Replace("Control", "Ctrl") + " for new scratch · Ctrl+H for history";
         ThemeButton.ToolTip = s.LightTheme ? "Switch to dark theme" : "Switch to light theme";
         ThemeIcon.Data = Geometry.Parse(s.LightTheme ? "M21,12.79 A9,9 0 1 1 11.21,3 A7,7 0 0 0 21,12.79" : "M17,12 A5,5 0 1 1 7,12 A5,5 0 1 1 17,12 M12,1 V3 M12,21 V23 M1,12 H3 M21,12 H23 M4,4 L6,6 M18,18 L20,20 M4,20 L6,18 M18,6 L20,4");
     }

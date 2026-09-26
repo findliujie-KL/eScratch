@@ -1,6 +1,4 @@
 $ErrorActionPreference = 'Stop'
 & "$PSScriptRoot/build.ps1"
-$root = Split-Path $PSScriptRoot -Parent
-$localSdk = Join-Path $root '.tools/dotnet/dotnet.exe'
-$dotnet = if (Test-Path $localSdk) { $localSdk } else { 'dotnet' }
-& $dotnet run --project "$PSScriptRoot/eScratch/eScratch.csproj" --no-build
+# Framework builds run directly, without a dotnet.exe host.
+& "$PSScriptRoot/eScratch/bin/Debug/net48/eScratch.exe"

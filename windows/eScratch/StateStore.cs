@@ -83,14 +83,14 @@ public sealed class StateStore
         s.NewShortcut = ValidShortcut(s.NewShortcut, "Control+T");
         s.MarkdownShortcut = ValidShortcut(s.MarkdownShortcut, "Control+Shift+V");
         s.CopyShortcut = ValidShortcut(s.CopyShortcut, "Control+Shift+C");
-        s.HistoryLimit = Math.Clamp(s.HistoryLimit, 1, 1000);
+        s.HistoryLimit = Math.Max(1, Math.Min(1000, s.HistoryLimit));
         if (!new[] { 2, 4, 6, 8 }.Contains(s.IndentSize)) s.IndentSize = 2;
         s.OcrLanguages ??= ["eng"];
         State.History = State.History.Where(h => h != null && !string.IsNullOrWhiteSpace(h.Text)).Take(s.HistoryLimit).ToList();
     }
     private static string ValidShortcut(string? value, string fallback)
     {
-        try { if (!string.IsNullOrWhiteSpace(value) && Hotkey.Parse(value).Modifiers != System.Windows.Input.ModifierKeys.None) return value; }
+        try { if (!string.IsNullOrWhiteSpace(value) && Hotkey.Parse(value!).Modifiers != System.Windows.Input.ModifierKeys.None) return value!; }
         catch (Exception) { }
         return fallback;
     }
@@ -100,7 +100,7 @@ public sealed class StateStore
         var path = Path.Combine(DirectoryPath, "state.json");
         var temporary = path + ".tmp";
         File.WriteAllText(temporary, JsonSerializer.Serialize(State, JsonOptions));
-        File.Move(temporary, path, true);
+        Compatibility.ReplaceFile(temporary, path);
     }
     public void Remember(string text)
     {
