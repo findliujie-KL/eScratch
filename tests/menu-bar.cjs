@@ -68,6 +68,10 @@ async function launch(platform = 'darwin', initialConfig = null, blockedShortcut
   const fsMock = {
     existsSync: file => storedFiles.has(normalizePath(file)),
     readFileSync: file => storedFiles.get(normalizePath(file)) || '',
+    mkdirSync() {},
+    copyFileSync: (_source, destination) => storedFiles.set(normalizePath(destination), 'bundled language'),
+    statSync: file => ({ size: String(storedFiles.get(normalizePath(file)) || '').length }),
+    unlinkSync: file => storedFiles.delete(normalizePath(file)),
     writeFileSync: (file, data) => {
       storedFiles.set(normalizePath(file), data);
       writes.push({ file, data });
@@ -75,8 +79,10 @@ async function launch(platform = 'darwin', initialConfig = null, blockedShortcut
   };
   const source = fs.readFileSync(path.join(__dirname, '../electron/main.ts'), 'utf8');
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
+  const ocrTextModule = { exports: {} };
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../electron/ocrText.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, ocrTextModule);
   vm.runInNewContext(code, {
-    require: name => name === 'electron' ? electron : name === 'node:fs' ? fsMock : require(name),
+    require: name => name === 'electron' ? electron : name === 'node:fs' ? fsMock : name === './ocrText' ? ocrTextModule.exports : require(name),
     exports: {}, __dirname: '/app/dist-electron', process: { platform, argv: login ? ['--login'] : [], execPath: '/runtime/electron.exe', resourcesPath: '/resources', env: portable ? { PORTABLE_EXECUTABLE_FILE: 'C:/Apps/eScratch.exe' } : {} }, console
   });
   await new Promise(resolve => setImmediate(resolve));
@@ -253,6 +259,20 @@ test('Windows has no taskbar icon and resumes only once per hide', async () => {
   trays[0].emit('double-click'); assert.equal(w.messages.length, 1);
   w.minimized = true; w.emit('minimize'); trays[0].emit('double-click');
   assert.equal(w.messages.length, 2); assert.equal(w.minimized, false);
+});
+
+test('OCR language priority and line-joining preference persist', async () => {
+  const host = await launch('win32', { ocrLanguages: ['eng', 'chi_sim'] });
+  host.storedFiles.set('/test-data/ocr-languages/chi_sim.traineddata.gz', 'installed language');
+  const initial = await host.ipcHandlers.get('get-ocr-languages')();
+  assert.equal(initial.find(language => language.code === 'eng').priority, 1);
+  assert.equal(initial.find(language => language.code === 'chi_sim').priority, 2);
+  const reversed = initial.filter(language => language.selected).reverse().map(language => language.code);
+  const reordered = await host.ipcHandlers.get('set-ocr-languages')(null, reversed);
+  assert.equal(reordered.find(language => language.code === 'chi_sim').priority, 1);
+  assert.deepEqual(Array.from((await host.ipcHandlers.get('get-config')()).ocrLanguages), ['chi_sim', 'eng']);
+  assert.equal(await host.ipcHandlers.get('set-join-wrapped-ocr-lines')(null, false), false);
+  assert.equal((await host.ipcHandlers.get('get-config')()).joinWrappedOcrLines, false);
 });
 test('Login launch remains hidden and startup targets the portable launcher', async () => {
   const { app, windows, ipcHandlers } = await launch('win32', null, null, true, true);

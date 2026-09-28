@@ -94,6 +94,7 @@ function App() {
   const [indentType, setIndentType] = useState<'space' | 'tab'>('space')
   const [indentSize, setIndentSize] = useState(2)
   const [showWhitespace, setShowWhitespace] = useState(false)
+  const [joinWrappedOcrLines, setJoinWrappedOcrLines] = useState(true)
   const [startAtLogin, setStartAtLogin] = useState(false)
   const [loginAvailable, setLoginAvailable] = useState(false)
   const [loginMessage, setLoginMessage] = useState('')
@@ -131,6 +132,7 @@ function App() {
       setIndentType(config.indentType)
       setIndentSize(config.indentSize)
       setShowWhitespace(config.showWhitespace)
+      setJoinWrappedOcrLines(config.joinWrappedOcrLines)
       setStartAtLogin(config.startAtLogin); setLoginAvailable(config.loginAvailable)
       setHistoryLimitInput(String(config.historyLimit))
     })
@@ -352,7 +354,7 @@ function App() {
       setNewShortcut(config.newShortcut); setNewShortcutInput(config.newShortcut)
       setMarkdownShortcut(config.markdownShortcut); setMarkdownShortcutInput(config.markdownShortcut); setCopyShortcut(config.copyShortcut); setCopyShortcutInput(config.copyShortcut)
       setShowWordCount(config.showWordCount); setAlwaysOnTop(config.alwaysOnTop); setIndentType(config.indentType); setIndentSize(config.indentSize)
-      setShowWhitespace(config.showWhitespace); setStartAtLogin(config.startAtLogin); setLoginAvailable(config.loginAvailable)
+      setShowWhitespace(config.showWhitespace); setJoinWrappedOcrLines(config.joinWrappedOcrLines); setStartAtLogin(config.startAtLogin); setLoginAvailable(config.loginAvailable)
       setHistoryLimitInput(String(config.historyLimit)); setHistory(restoredHistory)
       setTheme('dark'); setRecordingTarget(null); setClearHistoryArmed(false)
       setOcrLanguages(await window.electronAPI.getOcrLanguages())
@@ -411,6 +413,7 @@ function App() {
   const handleOcrLanguageSelection = useCallback(async (code: string, checked: boolean) => {
     const selected = ocrLanguages
       .filter((language) => language.selected && language.code !== code)
+      .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
       .map((language) => language.code)
     if (checked) selected.push(code)
     if (!selected.length) {
@@ -423,6 +426,22 @@ function App() {
     } catch (error) {
       console.error('Could not select OCR languages:', error)
       setOcrLanguageError('Could not update the selected languages.')
+    }
+  }, [ocrLanguages])
+
+  const moveOcrLanguage = useCallback(async (code: string, direction: -1 | 1) => {
+    const selected = ocrLanguages.filter((language) => language.selected)
+      .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
+      .map((language) => language.code)
+    const index = selected.indexOf(code)
+    const other = index + direction
+    if (index < 0 || other < 0 || other >= selected.length) return
+    ;[selected[index], selected[other]] = [selected[other], selected[index]]
+    try {
+      setOcrLanguages(await window.electronAPI.setOcrLanguages(selected))
+      setOcrLanguageError('')
+    } catch {
+      setOcrLanguageError('Could not update OCR language priority.')
     }
   }, [ocrLanguages])
 
@@ -549,6 +568,9 @@ function App() {
   }
 
   const installedOcrLanguages = ocrLanguages.filter((language) => language.installed)
+    .sort((a, b) => a.selected === b.selected
+      ? a.selected ? (a.priority ?? 0) - (b.priority ?? 0) : 0
+      : a.selected ? -1 : 1)
   const availableOcrLanguages = ocrLanguages
     .filter((language) => !language.installed)
     .filter((language) => {
@@ -849,9 +871,9 @@ function App() {
               <div className="settings-item">
                 <div className="settings-label">OCR Languages</div>
                 <div className="setting-description ocr-language-description">
-                  Select the languages used when you paste a screenshot. Installed languages work offline.
+                  Select languages and use the arrows to set priority. The first language leads recognition. Extra spaces between Chinese characters are removed.
                 </div>
-                <div className="ocr-installed-title">Installed</div>
+                <div className="ocr-installed-title">Installed · Priority order</div>
                 <div className="ocr-language-list">
                   {installedOcrLanguages.map((language) => (
                     <div className="ocr-language-row" key={language.code}>
@@ -861,10 +883,14 @@ function App() {
                           checked={language.selected}
                           onChange={(event) => handleOcrLanguageSelection(language.code, event.target.checked)}
                         />
-                        <span>{language.name}</span>
+                        <span>{language.selected ? `${language.priority}. ${language.name}` : language.name}</span>
                       </label>
                       <div className="ocr-language-actions">
                         <span className="ocr-language-size">{formatFileSize(language.sizeBytes)}</span>
+                        {language.selected && <>
+                          <button className="btn-language priority" aria-label={`Move ${language.name} up`} title="Higher OCR priority" disabled={language.priority === 1} onClick={() => moveOcrLanguage(language.code, -1)}>↑</button>
+                          <button className="btn-language priority" aria-label={`Move ${language.name} down`} title="Lower OCR priority" disabled={language.priority === installedOcrLanguages.filter(item => item.selected).length} onClick={() => moveOcrLanguage(language.code, 1)}>↓</button>
+                        </>}
                         {language.code !== 'eng' && (
                           <button
                             className="btn-language remove"
@@ -933,6 +959,12 @@ function App() {
                   })() : ocrLanguageToDownload ? `Download ${ocrLanguageToDownload.name}` : 'Choose a language'}
                 </button>
                 {ocrLanguageError && <div className="ocr-language-error">{ocrLanguageError}</div>}
+              </div>
+              <div className="settings-item">
+                <div className="settings-row">
+                  <div><div className="settings-label">Join wrapped OCR lines</div><div className="setting-description">Keep blank lines as paragraph breaks. Turn off for lists or line-by-line text.</div></div>
+                  <label className="switch" htmlFor="join-ocr-lines-toggle"><input id="join-ocr-lines-toggle" type="checkbox" checked={joinWrappedOcrLines} onChange={async event => setJoinWrappedOcrLines(await window.electronAPI.setJoinWrappedOcrLines(event.target.checked))}/><span className="switch-slider" /></label>
+                </div>
               </div>
               <div className="settings-item">
                 <div className="settings-row">

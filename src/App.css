@@ -434,6 +434,11 @@ body {
   white-space: nowrap;
 }
 
+.btn-language.priority {
+  min-width: 24px;
+  padding: 5px 3px;
+}
+
 .btn-language {
   min-width: 72px;
   padding: 5px 8px;

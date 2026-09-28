@@ -18,6 +18,7 @@ export interface AppConfig {
   showWhitespace: boolean
   showInMenuBar: boolean
   ocrLanguages: string[]
+  joinWrappedOcrLines: boolean
   historyLimit: number
 }
 
@@ -26,6 +27,7 @@ export interface OcrLanguage {
   name: string
   installed: boolean
   selected: boolean
+  priority: number | null
   sizeBytes: number | null
 }
 
@@ -53,6 +55,7 @@ export interface ElectronAPI {
   downloadOcrLanguage: (code: string) => Promise<OcrLanguage[]>
   removeOcrLanguage: (code: string) => Promise<OcrLanguage[]>
   setOcrLanguages: (codes: string[]) => Promise<OcrLanguage[]>
+  setJoinWrappedOcrLines: (enabled: boolean) => Promise<boolean>
   onOcrDownloadProgress: (callback: (progress: OcrDownloadProgress) => void) => () => void
   getConfig: () => Promise<AppConfig>
   restoreDefaults: () => Promise<{ config: AppConfig; history: HistoryEntry[] }>

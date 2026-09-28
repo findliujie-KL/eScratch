@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   downloadOcrLanguage: (code: string) => ipcRenderer.invoke('download-ocr-language', code),
   removeOcrLanguage: (code: string) => ipcRenderer.invoke('remove-ocr-language', code),
   setOcrLanguages: (codes: string[]) => ipcRenderer.invoke('set-ocr-languages', codes),
+  setJoinWrappedOcrLines: (enabled: boolean) => ipcRenderer.invoke('set-join-wrapped-ocr-lines', enabled),
   onOcrDownloadProgress: (callback: (progress: { code: string; receivedBytes: number; totalBytes: number | null }) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, progress: { code: string; receivedBytes: number; totalBytes: number | null }) => callback(progress)
     ipcRenderer.on('ocr-download-progress', listener)

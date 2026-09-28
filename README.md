@@ -45,7 +45,7 @@ The app lives in the system tray (menu bar on macOS), with no taskbar or Dock ic
 - **Configurable shortcut** — Change the global shortcut in settings by pressing your desired key combination
 - **Show whitespace** — Optionally reveal spaces, tabs, and full-width spaces as visible markers
 - **Screenshot OCR** — Paste an image to insert its recognized text directly into the editor
-- **Downloadable OCR languages** — Install and select additional recognition languages from settings for offline use
+- **Downloadable OCR languages** — Install languages for offline use and set their recognition priority with the arrows. OCR removes spurious spaces between Chinese characters and can join wrapped lines; turn line joining off for lists or line-by-line material.
 - **Start at login** — Optional in Settings on Windows/macOS; off by default, launches quietly in the tray. Keep portable executables in the same location after enabling it.
 - **Windows tray mode** — Closing the window keeps the app in the system tray; double-click the tray icon to restore it
 

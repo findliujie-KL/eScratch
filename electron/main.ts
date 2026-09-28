@@ -2,6 +2,7 @@ import { app, BrowserWindow, globalShortcut, ipcMain, clipboard, Tray, Menu, nat
 import path from 'node:path'
 import fs from 'node:fs'
 import { createWorker } from 'tesseract.js'
+import { cleanOcrText } from './ocrText'
 
 process.env.DIST = path.join(__dirname, '../dist')
 app.setName('eScratch')
@@ -177,6 +178,7 @@ interface Config {
   indentType: 'space' | 'tab'
   indentSize: number
   showWhitespace: boolean
+  joinWrappedOcrLines: boolean
   showInMenuBar: boolean
   ocrLanguages: string[]
   historyLimit: number
@@ -199,6 +201,7 @@ function defaultConfig(): Config {
     indentType: 'space',
     indentSize: 2,
     showWhitespace: false,
+    joinWrappedOcrLines: true,
     showInMenuBar: false,
     ocrLanguages: ['eng'],
     historyLimit: 10,
@@ -223,6 +226,7 @@ function loadConfig(): Config {
         indentType: saved.indentType === 'tab' ? 'tab' : 'space',
         indentSize: [2, 4, 6, 8].includes(Number(saved.indentSize)) ? Number(saved.indentSize) : 2,
         showWhitespace: saved.showWhitespace === true,
+        joinWrappedOcrLines: saved.joinWrappedOcrLines !== false,
         showInMenuBar: saved.showInMenuBar === true,
         ocrLanguages: Array.isArray(saved.ocrLanguages) && saved.ocrLanguages.length
           ? saved.ocrLanguages.filter((code: unknown) => typeof code === 'string')
@@ -283,7 +287,8 @@ function ensureBundledEnglishAvailable() {
 
 function getOcrLanguageState() {
   const languageDir = ensureBundledEnglishAvailable()
-  const selected = new Set(loadConfig().ocrLanguages)
+  const selectedCodes = loadConfig().ocrLanguages
+  const selected = new Set(selectedCodes)
   return OCR_LANGUAGES.map((language) => {
     const filePath = path.join(languageDir, `${language.code}.traineddata.gz`)
     const installed = fs.existsSync(filePath)
@@ -291,6 +296,7 @@ function getOcrLanguageState() {
       ...language,
       installed,
       selected: installed && selected.has(language.code),
+      priority: installed && selected.has(language.code) ? selectedCodes.indexOf(language.code) + 1 : null,
       sizeBytes: installed ? fs.statSync(filePath).size : null,
     }
   })
@@ -545,7 +551,7 @@ app.whenReady().then(() => {
       })
     }
     const result = await ocrWorker.recognize(Buffer.from(imageBytes))
-    return result.data.text.trim()
+    return cleanOcrText(result.data.text, loadConfig().joinWrappedOcrLines)
   })
 
   ipcMain.handle('get-ocr-languages', () => getOcrLanguageState())
@@ -602,9 +608,10 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('set-ocr-languages', async (_event, codes: string[]) => {
-    const installedCodes = new Set(getOcrLanguageState().filter((language) => language.installed).map((language) => language.code))
+    const installed = getOcrLanguageState()
+    const installedCodes = new Set(installed.filter((language) => language.installed).map((language) => language.code))
     const selected = Array.isArray(codes)
-      ? [...new Set(codes)].filter((code) => installedCodes.has(code as typeof OCR_LANGUAGES[number]['code']))
+      ? codes.filter((code, index) => codes.indexOf(code) === index && installedCodes.has(code as typeof OCR_LANGUAGES[number]['code']))
       : []
     if (!selected.length) throw new Error('Select at least one installed OCR language.')
     const config = loadConfig()
@@ -692,6 +699,13 @@ app.whenReady().then(() => {
     config.showWhitespace = showWhitespace === true
     saveConfig(config)
     return config.showWhitespace
+  })
+
+  ipcMain.handle('set-join-wrapped-ocr-lines', (_event, enabled: boolean) => {
+    const config = loadConfig()
+    config.joinWrappedOcrLines = enabled === true
+    saveConfig(config)
+    return config.joinWrappedOcrLines
   })
 
   ipcMain.handle('set-show-in-menu-bar', (_event, showInMenuBar: boolean) => {
