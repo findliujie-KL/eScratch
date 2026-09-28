@@ -14,7 +14,8 @@ uses the Windows .NET Framework CLR, and needs no .NET 10 Desktop Runtime.
 - Ctrl+H History, Ctrl+T New, Ctrl+Shift+C Copy and configurable Ctrl+Shift+V Markdown paste.
 - History limit (10 by default), restore/delete/clear, and restore default settings.
 - Offline native Tesseract screenshot OCR, PNG/Bitmap fallbacks and alpha repair.
-- Searchable OCR language downloads, multiple recognition languages, cancellation and removal.
+- Searchable OCR language downloads, editable priority for multiple selected languages,
+  Chinese spacing cleanup, optional joining of wrapped lines, cancellation and removal.
 - Markdown conversion and best-effort deleted-text recovery from Word clipboard formats.
 - Optional live word count, verified against the same 249 Word reference cases.
 - Draft autosave, atomic replacement, corrupt-data backup, timed notices and single-instance guard.

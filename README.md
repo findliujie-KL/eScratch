@@ -44,7 +44,8 @@ Open `windows/eScratch.slnx` in Visual Studio to edit the application.
 - Optional persistent word count in the bottom-right corner (on by default)
 - Plain-text editor, light/dark themes, and customizable shortcuts
 - Configurable history (10 entries by default) and Clear All
-- Offline screenshot OCR with English bundled and searchable language downloads
+- Offline screenshot OCR with English bundled, searchable language downloads,
+  editable language priority, Chinese spacing cleanup and optional joining of wrapped lines
 - Restore defaults in Settings, with confirmation; keeps the draft and downloaded
   languages, and retains the newest 10 history entries
 

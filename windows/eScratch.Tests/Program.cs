@@ -23,6 +23,13 @@ internal static class Program
         try
         {
             CompatibilityChecks.Run(folder, Check);
+            Check(OcrTextCleaner.Clean("这 种 变 化", false) == "这种变化", "OCR removes spaces only between Chinese characters");
+            Check(OcrTextCleaner.Clean("中 文 English words 123 中 文", false) == "中文 English words 123 中文", "OCR preserves English and number spacing");
+            Check(OcrTextCleaner.Clean("变 化 ， 风 险 。 English 123", false) == "变化，风险。 English 123", "OCR removes spurious spaces around Chinese punctuation");
+            Check(OcrTextCleaner.Clean("控制 ? 如果", false) == "控制?如果", "OCR removes spaces around punctuation in Chinese text");
+            Check(OcrTextCleaner.Clean("这 种\n变 化\n\nEnglish words\ncontinue here", true) == "这种变化\n\nEnglish words continue here", "OCR joins wrapped lines while preserving paragraphs");
+            Check(OcrTextCleaner.Clean("第一项\n2. 第二项", true) == "第一项\n2. 第二项", "OCR preserves numbered list lines");
+            Check(OcrTextCleaner.Clean("句子。\n下一句\n\nEnglish.\nNext", true) == "句子。下一句\n\nEnglish. Next", "OCR joins sentences within a paragraph");
             using var cases = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "markdown-cases.json")));
             foreach (var test in cases.RootElement.EnumerateArray())
             {

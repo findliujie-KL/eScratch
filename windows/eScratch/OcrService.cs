@@ -81,7 +81,7 @@ public sealed class OcrService
         { throw new OperationCanceledException("Language download canceled.", ex, cancellation); }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
-    public Task<string> RecognizeAsync(byte[] image, IEnumerable<string> selected)
+    public Task<string> RecognizeAsync(byte[] image, IEnumerable<string> selected, bool joinWrappedLines = true)
     {
         var codes = selected.Where(c => Catalog.Any(l => l.Code == c) && Installed(c)).Distinct().ToArray();
         if (codes.Length == 0) codes = ["eng"];
@@ -91,7 +91,7 @@ public sealed class OcrService
             using var engine = new TesseractEngine(LanguageDirectory, string.Join("+", codes), EngineMode.LstmOnly);
             using var pix = Pix.LoadFromMemory(image);
             using var page = engine.Process(pix);
-            return page.GetText().Trim();
+            return OcrTextCleaner.Clean(page.GetText(), joinWrappedLines);
         });
     }
 }
