@@ -20,6 +20,7 @@ public sealed class Settings
     public int HistoryLimit { get; set; } = 10;
     public bool LightTheme { get; set; } = true;
     public List<string> OcrLanguages { get; set; } = ["eng"];
+    public bool JoinWrappedOcrLines { get; set; } = true;
 }
 public sealed record HistoryEntry(string Id, string Text, DateTimeOffset CreatedAt)
 {

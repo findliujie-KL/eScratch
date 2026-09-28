@@ -27,7 +27,7 @@ public partial class SettingsWindow : UserControl
         downloadNotice = new TransientNotice(DownloadStatus);
         var s = store.State.Settings;
         try { LoginBox.IsChecked = LoginStartup.Enabled; } catch (Exception ex) { LoginBox.IsEnabled = false; feedbackNotice.Show("Could not read startup setting: " + ex.Message); }
-        WordCountBox.IsChecked = s.ShowWordCount; TopmostBox.IsChecked = s.AlwaysOnTop; LightBox.IsChecked = s.LightTheme; WhitespaceBox.IsChecked = s.ShowWhitespace;
+        WordCountBox.IsChecked = s.ShowWordCount; TopmostBox.IsChecked = s.AlwaysOnTop; LightBox.IsChecked = s.LightTheme; WhitespaceBox.IsChecked = s.ShowWhitespace; JoinOcrLinesBox.IsChecked = s.JoinWrappedOcrLines;
         HistoryLimitBox.Text = s.HistoryLimit.ToString();
         IndentBox.SelectedIndex = s.IndentType == "tab" ? 1 : 0; IndentSizeBox.SelectedIndex = s.IndentSize / 2 - 1;
         ToggleBox.Text = s.Shortcut; NewBox.Text = s.NewShortcut; CopyBox.Text = s.CopyShortcut; MarkdownBox.Text = s.MarkdownShortcut;
@@ -73,7 +73,7 @@ public partial class SettingsWindow : UserControl
         if (!registerShortcut(ToggleBox.Text)) { feedbackNotice.Show("That global shortcut is already in use. Please choose another."); return; }
         var s = store.State.Settings;
         s.Shortcut = ToggleBox.Text; s.NewShortcut = NewBox.Text; s.CopyShortcut = CopyBox.Text; s.MarkdownShortcut = MarkdownBox.Text;
-        s.ShowWordCount = WordCountBox.IsChecked == true; s.AlwaysOnTop = TopmostBox.IsChecked == true; s.LightTheme = LightBox.IsChecked == true; s.ShowWhitespace = WhitespaceBox.IsChecked == true;
+        s.ShowWordCount = WordCountBox.IsChecked == true; s.AlwaysOnTop = TopmostBox.IsChecked == true; s.LightTheme = LightBox.IsChecked == true; s.ShowWhitespace = WhitespaceBox.IsChecked == true; s.JoinWrappedOcrLines = JoinOcrLinesBox.IsChecked == true;
         s.HistoryLimit = limit; s.IndentType = IndentBox.SelectedIndex == 1 ? "tab" : "space"; s.IndentSize = (IndentSizeBox.SelectedIndex + 1) * 2;
         try { if (LoginBox.IsEnabled && (LoginBox.IsChecked == true) != LoginStartup.Enabled) LoginStartup.SetEnabled(LoginBox.IsChecked == true); store.Save(); changed(); Close(); } catch (Exception ex) { feedbackNotice.Show("Could not save: " + ex.Message); }
     }
@@ -92,9 +92,11 @@ public partial class SettingsWindow : UserControl
     private void RefreshInstalled()
     {
         InstalledLanguages.Children.Clear();
-        store.State.Settings.OcrLanguages = store.State.Settings.OcrLanguages.Where(c => ocr.Catalog.Any(l => l.Code == c) && ocr.Installed(c)).ToList();
+        store.State.Settings.OcrLanguages = store.State.Settings.OcrLanguages.Where(c => ocr.Catalog.Any(l => l.Code == c) && ocr.Installed(c)).Distinct().ToList();
         if (store.State.Settings.OcrLanguages.Count == 0) store.State.Settings.OcrLanguages.Add("eng");
-        foreach (var language in ocr.Catalog.Where(l => ocr.Installed(l.Code)))
+        var priority = store.State.Settings.OcrLanguages;
+        var installed = ocr.Catalog.Where(l => ocr.Installed(l.Code)).ToList();
+        foreach (var language in priority.Select(c => installed.First(l => l.Code == c)).Concat(installed.Where(l => !priority.Contains(l.Code))))
         {
             var row = new DockPanel();
             if (language.Code != "eng")
@@ -108,14 +110,34 @@ public partial class SettingsWindow : UserControl
                 };
                 row.Children.Add(remove);
             }
-            var check = new CheckBox { Content = language.Name, IsChecked = store.State.Settings.OcrLanguages.Contains(language.Code), VerticalAlignment = VerticalAlignment.Center };
+            var position = priority.IndexOf(language.Code);
+            if (position >= 0)
+            {
+                foreach (var direction in new[] { 1, -1 })
+                {
+                    var move = new Button { Content = direction < 0 ? "↑" : "↓", Width = 25, Padding = new Thickness(0),
+                        ToolTip = direction < 0 ? "Higher OCR priority" : "Lower OCR priority",
+                        IsEnabled = direction < 0 ? position > 0 : position < priority.Count - 1 };
+                    DockPanel.SetDock(move, Dock.Right);
+                    move.Click += (_, _) =>
+                    {
+                        var other = position + direction;
+                        (priority[position], priority[other]) = (priority[other], priority[position]);
+                        try { store.Save(); RefreshInstalled(); }
+                        catch (Exception ex) { (priority[position], priority[other]) = (priority[other], priority[position]); downloadNotice.Show(ex.Message); }
+                    };
+                    row.Children.Add(move);
+                }
+            }
+            var check = new CheckBox { Content = position >= 0 ? $"{position + 1}. {language.Name}" : language.Name,
+                IsChecked = position >= 0, VerticalAlignment = VerticalAlignment.Center };
             check.Click += (_, _) =>
             {
                 var selected = store.State.Settings.OcrLanguages;
                 if (check.IsChecked == true) { if (!selected.Contains(language.Code)) selected.Add(language.Code); }
                 else if (selected.Count == 1) { check.IsChecked = true; downloadNotice.Show("Keep at least one OCR language selected."); return; }
                 else selected.Remove(language.Code);
-                try { store.Save(); } catch (Exception ex) { downloadNotice.Show(ex.Message); }
+                try { store.Save(); RefreshInstalled(); } catch (Exception ex) { downloadNotice.Show(ex.Message); }
             };
             row.Children.Add(check); InstalledLanguages.Children.Add(row);
         }

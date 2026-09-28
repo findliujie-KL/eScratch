@@ -307,7 +307,7 @@ public partial class MainWindow : Window
                 {
                     var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
                     using var bytes = new MemoryStream(); encoder.Save(bytes);
-                    text = await ocr.RecognizeAsync(bytes.ToArray(), languages);
+                    text = await ocr.RecognizeAsync(bytes.ToArray(), languages, store.State.Settings.JoinWrappedOcrLines);
                     recognized = true;
                     if (!string.IsNullOrWhiteSpace(text)) break;
                 }

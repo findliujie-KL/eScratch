@@ -123,6 +123,9 @@ internal static class UiChecks
             ApplicationCommands.Paste.Execute(null, editor.TextArea);
             PumpUntil(() => status.Text != "Reading screenshot…");
             check(editor.Text.StartsWith("Before Hello") && editor.Text.EndsWith(" After"), "Empty OCR from PNG retries Bitmap and replaces the selection");
+            File.WriteAllBytes(Path.Combine(store.DirectoryPath, "tessdata", "chi_sim.traineddata"), new byte[] { 1 });
+            store.State.Settings.OcrLanguages = new System.Collections.Generic.List<string> { "eng", "chi_sim" };
+            store.Save();
             var settings = new SettingsWindow(store, new OcrService(store.DirectoryPath), _ => true, () => { });
             settings.Measure(new Size(530, 700)); settings.Arrange(new Rect(0, 0, 530, 700));
             var picker = (ComboBox)settings.FindName("LanguagePicker"); picker.ApplyTemplate();
@@ -130,6 +133,13 @@ internal static class UiChecks
             picker.SelectedItem = ((System.Collections.Generic.IEnumerable<OcrLanguage>)picker.ItemsSource).First(l => l.Code == "spa");
             textBox.Text = "Japanese";
             check(picker.SelectedItem == null && picker.Items.Cast<OcrLanguage>().All(l => l.Name.Contains("Japanese")) && picker.Items.Count > 0, "Editing a selected OCR language refreshes the search and clears stale selection");
+            var priorityRows = (StackPanel)settings.FindName("InstalledLanguages");
+            var secondRow = (DockPanel)priorityRows.Children[1];
+            var moveUp = secondRow.Children.OfType<Button>().First(b => Equals(b.ToolTip, "Higher OCR priority"));
+            moveUp.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            check(store.State.Settings.OcrLanguages.SequenceEqual(new[] { "chi_sim", "eng" }) &&
+                new StateStore(store.DirectoryPath).State.Settings.OcrLanguages.SequenceEqual(new[] { "chi_sim", "eng" }),
+                "OCR priority controls reorder and persist selected languages");
             settings.Close();
         }
         finally

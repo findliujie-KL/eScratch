@@ -164,5 +164,6 @@ look like deletions. Insertions are not inferred. RTF presence enables the heuri
 HTML supplies the formatting. Clipboard content is processed locally.
 
 Clipboard OCR prefers PNG, normalizes pixel format and transparency, and retries alternate image representations when recognition returns no text. Bitmap-only raw RGB repair handles producers with an unset alpha channel.
+Settings lists selected OCR languages in priority order. Move them with the arrows; the first model leads recognition. OCR removes spurious spaces between Chinese characters and can join wrapped lines while keeping blank lines as paragraph breaks. The line-joining option can be turned off for lists or other line-by-line material.
 
 Portable distribution policy: publish the complete application folder as a ZIP. Keep all DLLs, assets and native OCR libraries beside the executable. Do not use single-file publishing or a self-extracting portable EXE. Settings/history remain in the Windows user profile; this packaging does not change data storage.
