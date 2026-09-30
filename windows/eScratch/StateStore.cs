@@ -9,6 +9,7 @@ namespace eScratch;
 public sealed class Settings
 {
     public string Shortcut { get; set; } = "Control+J";
+    public string MouseShortcut { get; set; } = "";
     public string NewShortcut { get; set; } = "Control+T";
     public string MarkdownShortcut { get; set; } = "Control+Shift+V";
     public string CopyShortcut { get; set; } = "Control+Shift+C";
@@ -81,6 +82,7 @@ public sealed class StateStore
         State.Settings ??= new(); State.History ??= []; State.Draft ??= "";
         var s = State.Settings;
         s.Shortcut = ValidShortcut(s.Shortcut, "Control+J");
+        if (!MouseToggleHook.TryParse(s.MouseShortcut, out _)) s.MouseShortcut = "";
         s.NewShortcut = ValidShortcut(s.NewShortcut, "Control+T");
         s.MarkdownShortcut = ValidShortcut(s.MarkdownShortcut, "Control+Shift+V");
         s.CopyShortcut = ValidShortcut(s.CopyShortcut, "Control+Shift+C");

@@ -37,6 +37,7 @@ Open `windows/eScratch.slnx` in Visual Studio to edit the application.
 
 - Global show/hide shortcut and copy-on-hide
 - Tray-only operation, with no taskbar button
+- Optional system-wide middle-click or modifier + middle-click toggle, recorded in Settings; matching clicks are consumed
 - Optional startup at Windows login (off by default), quietly in the tray
 - Restoring the hidden/minimized editor saves the previous nonblank draft to History and opens a blank entry
 - For portable builds, keep the executable in the same location after enabling login startup

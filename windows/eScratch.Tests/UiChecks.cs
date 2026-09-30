@@ -126,7 +126,7 @@ internal static class UiChecks
             File.WriteAllBytes(Path.Combine(store.DirectoryPath, "tessdata", "chi_sim.traineddata"), new byte[] { 1 });
             store.State.Settings.OcrLanguages = new System.Collections.Generic.List<string> { "eng", "chi_sim" };
             store.Save();
-            var settings = new SettingsWindow(store, new OcrService(store.DirectoryPath), _ => true, () => { });
+            var settings = new SettingsWindow(store, new OcrService(store.DirectoryPath), _ => true, _ => { }, _ => { }, () => { });
             settings.Measure(new Size(530, 700)); settings.Arrange(new Rect(0, 0, 530, 700));
             var picker = (ComboBox)settings.FindName("LanguagePicker"); picker.ApplyTemplate();
             var textBox = (TextBox)picker.Template.FindName("PART_EditableTextBox", picker);

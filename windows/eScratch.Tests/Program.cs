@@ -69,6 +69,11 @@ internal static class Program
             store = new StateStore(folder);
             Check(store.State.Settings.HistoryLimit == 10 && store.State.Draft == "", "Null persisted fields safely normalized");
             Check(Hotkey.Parse("Control+Shift+C").Modifiers == (ModifierKeys.Control | ModifierKeys.Shift), "Electron shortcut format imports correctly");
+            Check(MouseToggleHook.TryParse("MiddleClick", out var plainMouse) && plainMouse == ModifierKeys.None, "Plain middle-click gesture is valid");
+            Check(MouseToggleHook.TryParse("Control+MiddleClick", out var modifiedMouse) && modifiedMouse == ModifierKeys.Control, "Modifier and middle-click gesture is valid");
+            Check(!MouseToggleHook.TryParse("Control+Control+MiddleClick", out _), "Duplicate mouse modifiers are rejected");
+            using (var mouse = new MouseToggleHook(System.Windows.Threading.Dispatcher.CurrentDispatcher, () => { }))
+            { mouse.Register("Control+MiddleClick"); Check(true, "Global mouse hook registers with Windows"); }
             using (var source = new HwndSource(new HwndSourceParameters("eScratch hotkey test") { Width = 1, Height = 1 }))
             using (var first = new Hotkey(source.Handle, () => { }))
             using (var otherSource = new HwndSource(new HwndSourceParameters("eScratch conflicting hotkey test") { Width = 1, Height = 1 }))

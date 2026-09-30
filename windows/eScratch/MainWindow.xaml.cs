@@ -22,9 +22,12 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer saveTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private readonly TransientNotice statusNotice;
     private Hotkey? hotkey;
+    private MouseToggleHook? mouseToggle;
     private bool quitting, reading;
     private long revision;
     private SettingsWindow? settingsWindow;
+    private Action? confirmationAction;
+    private UIElement? confirmationReturnFocus;
     public MainWindow(StateStore? stateStore = null, Func<IDataObject?>? clipboardReader = null)
     {
         readClipboard = clipboardReader ?? Clipboard.GetDataObject;
@@ -63,6 +66,9 @@ public partial class MainWindow : Window
         {
             hotkey = new Hotkey(new WindowInteropHelper(this).Handle, Toggle);
             if (!hotkey.Register(store.State.Settings.Shortcut)) statusNotice.Show("Shortcut is in use by another app. Choose another shortcut in Settings.");
+            mouseToggle = new MouseToggleHook(Dispatcher, Toggle);
+            try { mouseToggle.Register(store.State.Settings.MouseShortcut); }
+            catch (Exception ex) { statusNotice.Show(ex.Message); }
         };
         StateChanged += (_, _) => { if (WindowState == WindowState.Minimized) HideToTray(); };
         Closing += OnClosing;
@@ -127,7 +133,7 @@ public partial class MainWindow : Window
         catch (Exception ex) { statusNotice.Show("Clipboard is busy. Please try again. " + ex.Message); return false; }
     }
     private void Toggle() { if (IsVisible && WindowState != WindowState.Minimized) HideToTray(); else RestoreWindow(); }
-    private void HideToTray() { if (!CopyDraft()) return; SaveState(); settingsWindow?.Close(); Hide(); }
+    private void HideToTray() { if (!CopyDraft()) return; DismissConfirmation(); SaveState(); settingsWindow?.Close(); Hide(); }
     private void RestoreWindow()
     {
         if (!IsVisible || WindowState == WindowState.Minimized) StartResumedEntry();
@@ -147,7 +153,7 @@ public partial class MainWindow : Window
     private void OnClosing(object? sender, CancelEventArgs e) { if (!quitting) { e.Cancel = true; HideToTray(); } }
     private void Quit()
     {
-        SaveState(); quitting = true; saveTimer.Stop(); statusNotice.Dispose(); hotkey?.Dispose();
+        SaveState(); quitting = true; saveTimer.Stop(); statusNotice.Dispose(); hotkey?.Dispose(); mouseToggle?.Dispose();
         tray.Visible = false; tray.Icon?.Dispose(); tray.Dispose();
         settingsWindow?.Close(); Application.Current.Shutdown();
     }
@@ -159,6 +165,7 @@ public partial class MainWindow : Window
     private void CopyClick(object sender, RoutedEventArgs e) => CopyDraft();
     private void BackClick(object sender, RoutedEventArgs e)
     {
+        DismissConfirmation();
         HistoryPanel.Visibility = SettingsPanel.Visibility = PanelBackdrop.Visibility = Visibility.Collapsed;
         settingsWindow?.Close();
         HistoryButton.ClearValue(Button.BackgroundProperty); SettingsButton.ClearValue(Button.BackgroundProperty);
@@ -208,15 +215,49 @@ public partial class MainWindow : Window
     }
     private void ClearClick(object sender, RoutedEventArgs e)
     {
-        if (store.State.History.Count == 0 || MessageBox.Show(this, "Delete all saved history? Your current draft will be kept.", "Clear history", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        store.State.History.Clear(); SaveState(); RefreshHistory();
+        if (store.State.History.Count == 0) return;
+        ShowConfirmation("Clear history?", "Delete all saved history? Your current draft will be kept.", "Clear history", () =>
+        {
+            store.State.History.Clear(); SaveState(); RefreshHistory();
+        }, ClearHistoryButton);
+    }
+    internal void ShowConfirmation(string title, string message, string actionLabel, Action confirm, UIElement returnFocus)
+    {
+        if (ConfirmationOverlay.IsVisible) return;
+        confirmationAction = confirm;
+        confirmationReturnFocus = returnFocus;
+        ConfirmationTitle.Text = title;
+        ConfirmationMessage.Text = message;
+        ConfirmActionButton.Content = actionLabel;
+        System.Windows.Automation.AutomationProperties.SetName(ConfirmActionButton, actionLabel);
+        ConfirmationOverlay.Visibility = Visibility.Visible;
+        CancelConfirmationButton.Focus();
+    }
+    private void CancelConfirmationClick(object sender, RoutedEventArgs e) => DismissConfirmation();
+    private void DismissConfirmation()
+    {
+        if (ConfirmationOverlay.Visibility != Visibility.Visible) return;
+        var returnFocus = confirmationReturnFocus;
+        confirmationAction = null;
+        confirmationReturnFocus = null;
+        ConfirmationOverlay.Visibility = Visibility.Collapsed;
+        if (returnFocus?.IsVisible == true) returnFocus.Focus();
+        else Editor.Focus();
+    }
+    private void ConfirmActionClick(object sender, RoutedEventArgs e)
+    {
+        var action = confirmationAction;
+        DismissConfirmation();
+        action?.Invoke();
     }
     private void SettingsClick(object sender, RoutedEventArgs e)
     {
         bool wasOpen = settingsWindow != null;
         BackClick(sender, e);
         if (wasOpen) return;
-        settingsWindow = new SettingsWindow(store, ocr, shortcut => hotkey?.Register(shortcut) == true, () => { ApplySettings(); SaveState(); RefreshHistory(); });
+        settingsWindow = new SettingsWindow(store, ocr, shortcut => hotkey?.Register(shortcut) == true,
+            gesture => mouseToggle?.Register(gesture), active => { if (mouseToggle != null) mouseToggle.Suspended = active; },
+            () => { ApplySettings(); SaveState(); RefreshHistory(); });
         settingsWindow.Closed += (_, _) => { SettingsContent.Content = null; settingsWindow = null; SettingsPanel.Visibility = PanelBackdrop.Visibility = Visibility.Collapsed; SettingsButton.ClearValue(Button.BackgroundProperty); };
         SettingsContent.Content = settingsWindow;
         SettingsPanel.Visibility = PanelBackdrop.Visibility = Visibility.Visible;
@@ -224,6 +265,11 @@ public partial class MainWindow : Window
     }
     private void WindowKeyDown(object sender, KeyEventArgs e)
     {
+        if (ConfirmationOverlay.IsVisible)
+        {
+            if (e.Key == Key.Escape) { DismissConfirmation(); e.Handled = true; }
+            return;
+        }
         if (e.Key == Key.Escape) { if (PanelBackdrop.IsVisible) BackClick(sender, e); else HideToTray(); e.Handled = true; return; }
         if (settingsWindow != null) return;
         if (e.Key == Key.H && Keyboard.Modifiers == ModifierKeys.Control)

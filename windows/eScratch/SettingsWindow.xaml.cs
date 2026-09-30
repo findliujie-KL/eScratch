@@ -10,18 +10,20 @@ namespace eScratch;
 public partial class SettingsWindow : UserControl
 {
     public event EventHandler? Closed;
-    public void Close() { feedbackNotice.Dispose(); downloadNotice.Dispose(); download?.Cancel(); Closed?.Invoke(this, EventArgs.Empty); }
+    public void Close() { suspendMouseHook(false); feedbackNotice.Dispose(); downloadNotice.Dispose(); download?.Cancel(); Closed?.Invoke(this, EventArgs.Empty); }
     private readonly StateStore store;
     private readonly OcrService ocr;
     private readonly Func<string, bool> registerShortcut;
+    private readonly Action<string> registerMouseShortcut;
+    private readonly Action<bool> suspendMouseHook;
     private readonly Action changed;
     private CancellationTokenSource? download;
     private bool filtering;
     private readonly TransientNotice feedbackNotice;
     private readonly TransientNotice downloadNotice;
-    public SettingsWindow(StateStore store, OcrService ocr, Func<string, bool> registerShortcut, Action changed)
+    public SettingsWindow(StateStore store, OcrService ocr, Func<string, bool> registerShortcut, Action<string> registerMouseShortcut, Action<bool> suspendMouseHook, Action changed)
     {
-        this.store = store; this.ocr = ocr; this.registerShortcut = registerShortcut; this.changed = changed;
+        this.store = store; this.ocr = ocr; this.registerShortcut = registerShortcut; this.registerMouseShortcut = registerMouseShortcut; this.suspendMouseHook = suspendMouseHook; this.changed = changed;
         InitializeComponent();
         feedbackNotice = new TransientNotice(Feedback);
         downloadNotice = new TransientNotice(DownloadStatus);
@@ -30,7 +32,7 @@ public partial class SettingsWindow : UserControl
         WordCountBox.IsChecked = s.ShowWordCount; TopmostBox.IsChecked = s.AlwaysOnTop; LightBox.IsChecked = s.LightTheme; WhitespaceBox.IsChecked = s.ShowWhitespace; JoinOcrLinesBox.IsChecked = s.JoinWrappedOcrLines;
         HistoryLimitBox.Text = s.HistoryLimit.ToString();
         IndentBox.SelectedIndex = s.IndentType == "tab" ? 1 : 0; IndentSizeBox.SelectedIndex = s.IndentSize / 2 - 1;
-        ToggleBox.Text = s.Shortcut; NewBox.Text = s.NewShortcut; CopyBox.Text = s.CopyShortcut; MarkdownBox.Text = s.MarkdownShortcut;
+        ToggleBox.Text = s.Shortcut; MouseToggleBox.Text = s.MouseShortcut; NewBox.Text = s.NewShortcut; CopyBox.Text = s.CopyShortcut; MarkdownBox.Text = s.MarkdownShortcut;
         LanguagePicker.ItemsSource = ocr.Catalog;
         LanguagePicker.AddHandler(TextBoxBase.TextChangedEvent, new TextChangedEventHandler(SearchLanguages));
         RefreshInstalled();
@@ -46,14 +48,35 @@ public partial class SettingsWindow : UserControl
         try { ((TextBox)sender).Text = new KeyGestureConverter().ConvertToInvariantString(new KeyGesture(key, Keyboard.Modifiers))!; feedbackNotice.Show(""); }
         catch (Exception) { feedbackNotice.Show("That key combination cannot be used."); }
     }
+    private void BeginMouseCapture(object sender, KeyboardFocusChangedEventArgs e) => suspendMouseHook(true);
+    private void EndMouseCapture(object sender, KeyboardFocusChangedEventArgs e) => suspendMouseHook(false);
+    private void ClearMouseShortcut(object sender, RoutedEventArgs e) { MouseToggleBox.Text = ""; feedbackNotice.Show(""); }
+    private void RecordMouseShortcut(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Middle) return;
+        e.Handled = true;
+        var keys = Keyboard.Modifiers;
+        var prefix = keys == ModifierKeys.None ? "" : string.Join("+", new[] {
+            keys.HasFlag(ModifierKeys.Control) ? "Control" : "",
+            keys.HasFlag(ModifierKeys.Shift) ? "Shift" : "",
+            keys.HasFlag(ModifierKeys.Alt) ? "Alt" : "",
+            keys.HasFlag(ModifierKeys.Windows) ? "Windows" : "" }.Where(x => x.Length != 0)) + "+";
+        MouseToggleBox.Text = prefix + "MiddleClick";
+        feedbackNotice.Show("");
+    }
     private void RestoreDefaultsClick(object sender, RoutedEventArgs e)
     {
-        if (MessageBox.Show(Window.GetWindow(this),
-            "Restore all settings to their defaults? This turns off Start with Windows and resets shortcuts, the light theme, indentation, OCR selection to English, and the history limit to 10. Only the newest 10 history entries will be kept. Your current draft and downloaded OCR languages will be preserved.",
-            "Restore defaults", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        if (Window.GetWindow(this) is not MainWindow window) return;
+        window.ShowConfirmation("Restore defaults?",
+            "Turn off Start with Windows and reset shortcuts, theme, indentation, OCR selection to English, and the history limit to 10. Only the newest 10 history entries will remain. Your current draft and downloaded OCR languages will be kept.",
+            "Restore defaults", RestoreDefaults, RestoreDefaultsButton);
+    }
+    private void RestoreDefaults()
+    {
         try
         {
             if (!store.RestoreDefaults(registerShortcut)) { feedbackNotice.Show("The default shortcut is in use by another app. Close that app and retry. No settings were changed."); return; }
+            registerMouseShortcut("");
             LoginStartup.SetEnabled(false);
             changed(); Close();
         }
@@ -69,10 +92,23 @@ public partial class SettingsWindow : UserControl
             if (shortcuts.Select(k => (k.Key, k.Modifiers)).Distinct().Count() != 4) { feedbackNotice.Show("Choose different shortcuts for each action."); return; }
         }
         catch { feedbackNotice.Show("Record a valid shortcut in each field."); return; }
-        if (limit < store.State.History.Count && MessageBox.Show(Window.GetWindow(this), $"Keep only the newest {limit} history entries? Older entries will be removed.", "Reduce history", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+        if (!MouseToggleHook.TryParse(MouseToggleBox.Text, out _)) { feedbackNotice.Show("Record a valid middle-click gesture, or clear the mouse toggle."); return; }
+        if (limit < store.State.History.Count)
+        {
+            if (Window.GetWindow(this) is MainWindow window)
+                window.ShowConfirmation("Reduce history?", $"Keep only the newest {limit} history entries? Older entries will be removed.", "Reduce history", () => SaveSettings(limit), SaveSettingsButton);
+            return;
+        }
+        SaveSettings(limit);
+    }
+    private void SaveSettings(int limit)
+    {
+        var previousShortcut = store.State.Settings.Shortcut;
         if (!registerShortcut(ToggleBox.Text)) { feedbackNotice.Show("That global shortcut is already in use. Please choose another."); return; }
+        try { registerMouseShortcut(MouseToggleBox.Text); }
+        catch (Exception ex) { registerShortcut(previousShortcut); feedbackNotice.Show(ex.Message); return; }
         var s = store.State.Settings;
-        s.Shortcut = ToggleBox.Text; s.NewShortcut = NewBox.Text; s.CopyShortcut = CopyBox.Text; s.MarkdownShortcut = MarkdownBox.Text;
+        s.Shortcut = ToggleBox.Text; s.MouseShortcut = MouseToggleBox.Text; s.NewShortcut = NewBox.Text; s.CopyShortcut = CopyBox.Text; s.MarkdownShortcut = MarkdownBox.Text;
         s.ShowWordCount = WordCountBox.IsChecked == true; s.AlwaysOnTop = TopmostBox.IsChecked == true; s.LightTheme = LightBox.IsChecked == true; s.ShowWhitespace = WhitespaceBox.IsChecked == true; s.JoinWrappedOcrLines = JoinOcrLinesBox.IsChecked == true;
         s.HistoryLimit = limit; s.IndentType = IndentBox.SelectedIndex == 1 ? "tab" : "space"; s.IndentSize = (IndentSizeBox.SelectedIndex + 1) * 2;
         try { if (LoginBox.IsEnabled && (LoginBox.IsChecked == true) != LoginStartup.Enabled) LoginStartup.SetEnabled(LoginBox.IsChecked == true); store.Save(); changed(); Close(); } catch (Exception ex) { feedbackNotice.Show("Could not save: " + ex.Message); }
