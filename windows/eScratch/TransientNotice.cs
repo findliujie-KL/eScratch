@@ -15,7 +15,7 @@ public sealed class TransientNotice : IDisposable
         this.target = target;
         timer.Tick += (_, _) => { timer.Stop(); target.Text = ""; };
     }
-    public void Show(string text, double seconds = 8, bool persistent = false)
+    public void Show(string text, double seconds = 1, bool persistent = false)
     {
         if (disposed) return;
         timer.Stop();

@@ -24,6 +24,7 @@ public partial class MainWindow : Window
     private Hotkey? hotkey;
     private MouseToggleHook? mouseToggle;
     private bool quitting, reading;
+    private int zoomPercent = 100;
     private long revision;
     private SettingsWindow? settingsWindow;
     private Action? confirmationAction;
@@ -37,6 +38,7 @@ public partial class MainWindow : Window
         statusNotice = new TransientNotice(Status);
         Icon = BitmapFrame.Create(new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "icon.ico")));
         Editor.Text = store.State.Draft;
+        Editor.PreviewMouseWheel += ZoomWheel;
         ApplySettings();
         statusNotice.Show(store.Warning ?? "");
         Placeholder.Visibility = Editor.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -45,12 +47,20 @@ public partial class MainWindow : Window
         var menu = new ContextMenu();
         var paste = new MenuItem { Header = "Paste", Command = ApplicationCommands.Paste, CommandTarget = Editor.TextArea, InputGestureText = "Ctrl+V" };
         var markdown = new MenuItem { Header = "Paste as Markdown" };
+        var numberDivider = new Separator();
+        var separators = new MenuItem { Header = "Add thousand separators" };
+        var words = new MenuItem { Header = "Convert to words" };
         markdown.Click += (_, _) => PasteMarkdown();
-        menu.Items.Add(paste); menu.Items.Add(markdown);
+        separators.Click += (_, _) => { if (NumericText.TryAddSeparators(Editor.SelectedText, out var result)) ReplaceNumericSelection(result); };
+        words.Click += (_, _) => { if (NumericText.TryToWords(Editor.SelectedText, out var result)) ReplaceNumericSelection(result); };
+        menu.Items.Add(paste); menu.Items.Add(markdown); menu.Items.Add(numberDivider); menu.Items.Add(separators); menu.Items.Add(words);
         menu.Opened += (_, _) => {
             markdown.InputGestureText = store.State.Settings.MarkdownShortcut.Replace("Control", "Ctrl");
             try { var data = readClipboard(); markdown.IsEnabled = !Editor.IsReadOnly && data != null && (data.GetDataPresent(DataFormats.UnicodeText) || data.GetDataPresent(DataFormats.Html)); }
             catch { markdown.IsEnabled = false; }
+            var canFormat = !Editor.IsReadOnly && NumericText.TryAddSeparators(Editor.SelectedText, out _);
+            numberDivider.Visibility = separators.Visibility = words.Visibility = canFormat ? Visibility.Visible : Visibility.Collapsed;
+            words.IsEnabled = canFormat && NumericText.TryToWords(Editor.SelectedText, out _);
         };
         Editor.ContextMenu = menu;
         // AvalonEdit's default CanPaste only accepts text. Intercept the routed
@@ -126,14 +136,14 @@ public partial class MainWindow : Window
         ApplySettings(); SaveState();
         if (settingsWindow != null) ((CheckBox)settingsWindow.FindName("TopmostBox")).IsChecked = Topmost;
     }
-    private bool CopyDraft()
+    private bool TryCopyOnHide()
     {
         if (string.IsNullOrWhiteSpace(Editor.Text)) return true;
-        try { Clipboard.SetDataObject(Editor.Text, true); statusNotice.Show("Copied", 1.5); return true; }
+        try { Clipboard.SetDataObject(Editor.Text, true); statusNotice.Show("Copied"); return true; }
         catch (Exception ex) { statusNotice.Show("Clipboard is busy. Please try again. " + ex.Message); return false; }
     }
-    private void Toggle() { if (IsVisible && WindowState != WindowState.Minimized) HideToTray(); else RestoreWindow(); }
-    private void HideToTray() { if (!CopyDraft()) return; DismissConfirmation(); SaveState(); settingsWindow?.Close(); Hide(); }
+    private void Toggle() { if (IsVisible && WindowState != WindowState.Minimized && IsActive) HideToTray(); else RestoreWindow(); }
+    private void HideToTray() { if (store.State.Settings.CopyOnHide && !TryCopyOnHide()) return; DismissConfirmation(); SaveState(); settingsWindow?.Close(); Hide(); }
     private void RestoreWindow()
     {
         if (!IsVisible || WindowState == WindowState.Minimized) StartResumedEntry();
@@ -162,7 +172,6 @@ public partial class MainWindow : Window
         try { store.Remember(Editor.Text); Editor.Clear(); SaveState(); BackClick(sender, e); }
         catch (Exception ex) { statusNotice.Show("Could not save history: " + ex.Message); }
     }
-    private void CopyClick(object sender, RoutedEventArgs e) => CopyDraft();
     private void BackClick(object sender, RoutedEventArgs e)
     {
         DismissConfirmation();
@@ -213,10 +222,16 @@ public partial class MainWindow : Window
         var entry = (sender as Button)?.Tag as HistoryEntry ?? HistoryList.SelectedItem as HistoryEntry;
         if (entry != null) { store.State.History.RemoveAll(h => h.Id == entry.Id); SaveState(); RefreshHistory(); }
     }
+    private void PinHistoryClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is not HistoryEntry entry) return;
+        store.TogglePin(entry.Id);
+        RefreshHistory();
+    }
     private void ClearClick(object sender, RoutedEventArgs e)
     {
         if (store.State.History.Count == 0) return;
-        ShowConfirmation("Clear history?", "Delete all saved history? Your current draft will be kept.", "Clear history", () =>
+        ShowConfirmation("Clear history?", "Delete all saved history, including pinned entries? Your current draft will be kept.", "Clear history", () =>
         {
             store.State.History.Clear(); SaveState(); RefreshHistory();
         }, ClearHistoryButton);
@@ -271,16 +286,60 @@ public partial class MainWindow : Window
             return;
         }
         if (e.Key == Key.Escape) { if (PanelBackdrop.IsVisible) BackClick(sender, e); else HideToTray(); e.Handled = true; return; }
+        if ((e.Key == Key.D0 || e.Key == Key.NumPad0) && Keyboard.Modifiers == ModifierKeys.Control)
+        { SetZoom(100); e.Handled = true; return; }
         if (settingsWindow != null) return;
+        if ((e.Key == Key.Return || e.Key == Key.Enter) &&
+            (Keyboard.Modifiers == ModifierKeys.Control || Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift)) && Editor.IsKeyboardFocusWithin)
+        {
+            e.Handled = true;
+            if (!e.IsRepeat) CalculateCurrentLine(Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift));
+            return;
+        }
         if (e.Key == Key.H && Keyboard.Modifiers == ModifierKeys.Control)
         { if (!e.IsRepeat) HistoryClick(sender, e); e.Handled = true; return; }
         try
         {
             if (Editor.IsKeyboardFocusWithin && Hotkey.Parse(store.State.Settings.MarkdownShortcut).Matches(this, e)) { PasteMarkdown(); e.Handled = true; }
             else if (Hotkey.Parse(store.State.Settings.NewShortcut).Matches(this, e)) { NewClick(sender, e); e.Handled = true; }
-            else if (Hotkey.Parse(store.State.Settings.CopyShortcut).Matches(this, e)) { CopyDraft(); e.Handled = true; }
         }
         catch (NotSupportedException) { }
+    }
+    private void ZoomWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.Control || e.Delta == 0) return;
+        SetZoom(zoomPercent + (e.Delta > 0 ? 10 : -10));
+        e.Handled = true;
+    }
+    private void SetZoom(int percent)
+    {
+        zoomPercent = Math.Max(75, Math.Min(250, percent));
+        var scale = zoomPercent / 100.0;
+        Editor.FontSize = 14 * scale;
+        if (Placeholder.Children[0] is TextBlock prompt) prompt.FontSize = 14 * scale;
+        ShortcutHint.FontSize = 11 * scale;
+    }
+    private void CompleteCalculation() => CalculateCurrentLine(false);
+    private void CalculateCurrentLine(bool cycleUnit)
+    {
+        if (Editor.IsReadOnly || Editor.SelectionLength != 0) return;
+        var line = Editor.Document.GetLineByOffset(Editor.CaretOffset);
+        if (Editor.CaretOffset != line.EndOffset) { statusNotice.Show("Move the cursor to the end of the expression.", 1); return; }
+        var current = Editor.Document.GetText(line.Offset, line.Length);
+        var success = cycleUnit ? Calculator.TryCycleDisplayUnit(current, out var completedUnit) : Calculator.TryCompleteLine(current, out completedUnit);
+        var completed = completedUnit;
+        if (!success) { statusNotice.Show("Enter an arithmetic expression to calculate.", 1); return; }
+        if (completed == current) return;
+        Editor.Document.Replace(line.Offset, line.Length, completed);
+        Editor.CaretOffset = line.Offset + completed.Length;
+    }
+    private void ReplaceNumericSelection(string replacement)
+    {
+        if (Editor.IsReadOnly || Editor.SelectionLength == 0) return;
+        var start = Editor.SelectionStart;
+        Editor.Document.Replace(start, Editor.SelectionLength, replacement);
+        Editor.CaretOffset = start + replacement.Length;
+        Editor.Focus();
     }
     private void PasteMarkdown()
     {
@@ -296,7 +355,7 @@ public partial class MainWindow : Window
             var start = Editor.SelectionStart;
             Editor.Document.Replace(start, Editor.SelectionLength, text);
             Editor.CaretOffset = start + text.Length; Editor.Focus();
-            statusNotice.Show("Pasted as Markdown", 2);
+            statusNotice.Show("Pasted as Markdown");
         }
         catch (Exception ex) { statusNotice.Show("Could not paste as Markdown: " + ex.Message); }
     }
@@ -311,8 +370,7 @@ public partial class MainWindow : Window
         try
         {
             var data = readClipboard();
-            e.CanExecute = data != null && (ClipboardImage.IsAvailable(data) ||
-                data.GetDataPresent(DataFormats.UnicodeText) || data.GetDataPresent(DataFormats.Text));
+            e.CanExecute = data != null && (ClipboardImage.IsAvailable(data) || ClipboardImage.TryReadPlainText(data, out _));
         }
         catch (System.Runtime.InteropServices.ExternalException) { }
     }
@@ -324,7 +382,9 @@ public partial class MainWindow : Window
             var data = readClipboard();
             if (!ClipboardImage.IsAvailable(data)) return;
             e.Handled = true;
-            if (!Editor.IsReadOnly) await PasteImageAsync(data!);
+            if (Editor.IsReadOnly) return;
+            if (ClipboardImage.TryReadPlainText(data, out var text)) PastePlainText(text);
+            else await PasteImageAsync(data!);
         }
         catch (Exception ex) { e.Handled = true; statusNotice.Show("Could not read the clipboard: " + ex.Message); }
     }
@@ -332,7 +392,16 @@ public partial class MainWindow : Window
     {
         if (!ClipboardImage.IsAvailable(e.DataObject)) return;
         e.CancelCommand();
-        if (!Editor.IsReadOnly) await PasteImageAsync(e.DataObject);
+        if (Editor.IsReadOnly) return;
+        if (ClipboardImage.TryReadPlainText(e.DataObject, out var text)) PastePlainText(text);
+        else await PasteImageAsync(e.DataObject);
+    }
+    private void PastePlainText(string text)
+    {
+        var start = Editor.SelectionStart;
+        Editor.Document.Replace(start, Editor.SelectionLength, text);
+        Editor.CaretOffset = start + text.Length;
+        Editor.Focus();
     }
     private async System.Threading.Tasks.Task PasteImageAsync(IDataObject data)
     {
@@ -371,7 +440,7 @@ public partial class MainWindow : Window
                 return;
             }
             Editor.Document.Replace(start, length, text);
-            Editor.CaretOffset = start + text.Length; Editor.Focus(); statusNotice.Show("Screenshot text inserted", 2);
+            Editor.CaretOffset = start + text.Length; Editor.Focus(); statusNotice.Show("Screenshot text inserted");
         }
         catch (Exception ex) { statusNotice.Show("OCR failed: " + ex.Message); }
         finally { reading = false; }

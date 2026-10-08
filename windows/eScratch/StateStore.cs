@@ -12,8 +12,8 @@ public sealed class Settings
     public string MouseShortcut { get; set; } = "";
     public string NewShortcut { get; set; } = "Control+T";
     public string MarkdownShortcut { get; set; } = "Control+Shift+V";
-    public string CopyShortcut { get; set; } = "Control+Shift+C";
     public bool ShowWordCount { get; set; } = true;
+    public bool CopyOnHide { get; set; }
     public bool AlwaysOnTop { get; set; }
     public string IndentType { get; set; } = "space";
     public int IndentSize { get; set; } = 2;
@@ -25,6 +25,8 @@ public sealed class Settings
 }
 public sealed record HistoryEntry(string Id, string Text, DateTimeOffset CreatedAt)
 {
+    public bool Pinned { get; init; }
+    [JsonIgnore] public string PinToolTip => Pinned ? "Unpin history entry" : "Pin history entry";
     [JsonIgnore] public string Preview => Text.Replace('\r', ' ').Replace('\n', ' ');
     [JsonIgnore] public string Date => CreatedAt.ToLocalTime().ToString("g");
 }
@@ -85,11 +87,12 @@ public sealed class StateStore
         if (!MouseToggleHook.TryParse(s.MouseShortcut, out _)) s.MouseShortcut = "";
         s.NewShortcut = ValidShortcut(s.NewShortcut, "Control+T");
         s.MarkdownShortcut = ValidShortcut(s.MarkdownShortcut, "Control+Shift+V");
-        s.CopyShortcut = ValidShortcut(s.CopyShortcut, "Control+Shift+C");
         s.HistoryLimit = Math.Max(1, Math.Min(1000, s.HistoryLimit));
         if (!new[] { 2, 4, 6, 8 }.Contains(s.IndentSize)) s.IndentSize = 2;
         s.OcrLanguages ??= ["eng"];
-        State.History = State.History.Where(h => h != null && !string.IsNullOrWhiteSpace(h.Text)).Take(s.HistoryLimit).ToList();
+        var validHistory = State.History.Where(h => h != null && !string.IsNullOrWhiteSpace(h.Text)).ToList();
+        State.History = validHistory.Where(h => h.Pinned).OrderByDescending(h => h.CreatedAt)
+            .Concat(validHistory.Where(h => !h.Pinned).OrderByDescending(h => h.CreatedAt).Take(s.HistoryLimit)).ToList();
     }
     private static string ValidShortcut(string? value, string fallback)
     {
@@ -109,6 +112,13 @@ public sealed class StateStore
     {
         if (string.IsNullOrWhiteSpace(text)) return;
         State.History.Insert(0, new HistoryEntry(Guid.NewGuid().ToString("N"), text, DateTimeOffset.Now));
+        Save();
+    }
+    public void TogglePin(string id)
+    {
+        var index = State.History.FindIndex(entry => entry.Id == id);
+        if (index < 0) return;
+        State.History[index] = State.History[index] with { Pinned = !State.History[index].Pinned };
         Save();
     }
     public bool RestoreDefaults(Func<string, bool> registerShortcut)

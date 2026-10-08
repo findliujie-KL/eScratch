@@ -1,5 +1,7 @@
 # eScratch for Windows — .NET Framework 4.8
 
+See the [changelog](CHANGELOG.md) for unreleased improvements and earlier development milestones.
+
 A lightweight native Windows scratchpad built with C# and WPF, targeting .NET Framework 4.8.
 This compatibility branch does not require .NET 10 to run. The .NET 10 version
 remains on `wpf-rewrite`; Electron remains on `main`.
@@ -35,20 +37,21 @@ Open `windows/eScratch.slnx` in Visual Studio to edit the application.
 
 ## Features
 
-- Global show/hide shortcut and copy-on-hide
+- Global toggle shortcut brings a background window forward, then hides it when active; optional copy-on-hide is off by default
 - Tray-only operation, with no taskbar button
 - Optional system-wide middle-click or modifier + middle-click toggle, recorded in Settings; matching clicks are consumed
 - Optional startup at Windows login (off by default), quietly in the tray
 - Restoring the hidden/minimized editor saves the previous nonblank draft to History and opens a blank entry
 - For portable builds, keep the executable in the same location after enabling login startup
-- Toolbar pin toggles Always on Top; the copy shortcut remains available
+- Toolbar pin toggles Always on Top
 - Optional persistent word count in the bottom-right corner (on by default)
 - Plain-text editor, light/dark themes, and customizable shortcuts
-- Configurable history (10 entries by default) and Clear All
+- Configurable history (10 unpinned entries by default), persistent pins, and Clear All (including pinned entries)
 - Offline screenshot OCR with English bundled, searchable language downloads,
   editable language priority, Chinese spacing cleanup and optional joining of wrapped lines
+- Pasting copied spreadsheet cells uses their text rather than an included image preview; image-only clips use OCR
 - Restore defaults in Settings, with confirmation; keeps the draft and downloaded
-  languages, and retains the newest 10 history entries
+  languages, pinned history entries, and the newest 10 unpinned entries
 
 ## Build and test
 
@@ -70,3 +73,7 @@ the same data directory and schema. Exit the other WPF version before switching.
 The optional live counter follows Microsoft Word desktop counting conventions: East Asian characters (including Japanese kana, Korean syllables, and full-width punctuation) count individually; other text is counted in runs separated by Word-style boundaries. Standalone punctuation and emoji can contribute to the total. The implementation runs offline without Microsoft Word. Regression fixtures were measured using Word 16.0.19127 `Range.ComputeStatistics(wdStatisticWords)`; results in other Word versions or document structures may differ.
 
 Press **Ctrl+H** while using the editor or History panel to show/hide History. This shortcut is local to eScratch.
+
+Press **Ctrl+Enter** at the end of an arithmetic line to append its result (for example, `35+456 = 491`). Each repeat reveals up to two more useful decimal places, up to 14, without adding trailing zeros. Press **Ctrl+Shift+Enter** to cycle equivalent result units (number/percent below 100, or number/K/M/B/T for larger values); units below 0.01 are skipped. The initial unit display uses two decimal places for percentages and up to four for K/M/B/T; Ctrl+Enter reveals more digits. Supports `+`, `-`, `*`, `/`, parentheses, decimals, percentages and units such as `K`, `M`, hundred, thousand and million (for example, `1.5M * 60% = 0.9M`). Select a number and right-click to add thousand separators or convert it to English words.
+
+Hold **Ctrl** and scroll over the editor to zoom its text from 75% to 250% in 10% steps. Press **Ctrl+0** to reset to 100% (⌘+0 also works on macOS).

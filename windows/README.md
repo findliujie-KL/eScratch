@@ -11,7 +11,7 @@ uses the Windows .NET Framework CLR, and needs no .NET 10 Desktop Runtime.
 - Start with Windows (off by default), starting quietly in the tray.
 - Restoring from the tray archives the prior nonblank draft and opens a blank one.
 - Light/dark themes, toolbar Always on Top pin, word wrap, indentation and visible whitespace.
-- Ctrl+H History, Ctrl+T New, Ctrl+Shift+C Copy and configurable Ctrl+Shift+V Markdown paste.
+- Ctrl+H History, Ctrl+T New, and configurable Ctrl+Shift+V Markdown paste.
 - History limit (10 by default), restore/delete/clear, and restore default settings.
 - Offline native Tesseract screenshot OCR, PNG/Bitmap fallbacks and alpha repair.
 - Searchable OCR language downloads, editable priority for multiple selected languages,

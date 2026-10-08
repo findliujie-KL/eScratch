@@ -11,6 +11,22 @@ public static class ClipboardImage
     public static bool IsAvailable(IDataObject? data) => data != null &&
         (data.GetDataPresent(DataFormats.Bitmap) || data.GetDataPresent("PNG") || data.GetDataPresent("image/png"));
 
+    public static bool TryReadPlainText(IDataObject? data, out string text)
+    {
+        text = "";
+        if (data == null) return false;
+        foreach (var format in new[] { DataFormats.UnicodeText, DataFormats.Text })
+        {
+            if (!data.GetDataPresent(format)) continue;
+            if (data.GetData(format) is string value && value.Length > 0)
+            {
+                text = value;
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static BitmapSource Read(IDataObject data) => ReadCandidates(data)[0];
 
     // Snapshot all representations on the UI thread before asynchronous OCR begins.

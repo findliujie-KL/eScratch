@@ -23,6 +23,37 @@ internal static class Program
         try
         {
             CompatibilityChecks.Run(folder, Check);
+            Check(Calculator.TryCompleteLine("35+456", out var sum) && sum == "35+456 = 491", "Calculator appends the requested result");
+            Check(Calculator.TryCompleteLine("2*3+1/8", out var product) && product == "2*3+1/8 = 6.13", "Asterisk multiplies and results use at most two decimals");
+            Check(Calculator.TryCompleteLine(" (2 + 3) × -4 ", out var grouped) && grouped == " (2 + 3) × -4 = -20", "Calculator handles precedence, parentheses and signs");
+            Check(Calculator.TryCompleteLine("0.1 + 0.2", out var decimalSum) && decimalSum == "0.1 + 0.2 = 0.3", "Calculator formats decimal results cleanly");
+            Check(Calculator.TryCompleteLine("35+456 = 490", out var updated) && updated == "35+456 = 491", "Updating a result does not append zero decimals");
+            Check(Calculator.TryCompleteLine("1/3", out var third) && third == "1/3 = 0.33" && Calculator.TryCompleteLine(third, out var moreDigits) && moreDigits == "1/3 = 0.3333" && Calculator.TryCompleteLine(moreDigits, out var yetMoreDigits) && yetMoreDigits == "1/3 = 0.333333", "Repeated calculations reveal two more digits each time");
+            Check(!Calculator.TryCompleteLine("1/0", out _) && !Calculator.TryCompleteLine("hello + 2", out _), "Calculator rejects invalid and nonfinite expressions");
+            Check(Calculator.TryCompleteLine("1.5M * 60%", out var millionPercent) && millionPercent == "1.5M * 60% = 0.9M", "Percentage and million suffix retain a readable unit");
+            Check(Calculator.TryCompleteLine("150K * 8", out var scaledProduct) && scaledProduct == "150K * 8 = 1.2M", "Calculator promotes large results to a larger unit");
+            Check(Calculator.TryCompleteLine("2 hundreds + 3 thousand", out var spelledUnits) && spelledUnits == "2 hundreds + 3 thousand = 3.2K", "Calculator accepts written scale names");
+            Check(Calculator.TryCompleteLine(millionPercent, out var millionRepeat) && millionRepeat == "1.5M * 60% = 0.9M", "Repeated calculation does not append zero decimals to a suffixed result");
+            Check(Calculator.TryCompleteLine("0.358", out var roundedValue) && roundedValue == "0.358 = 0.36"
+                && Calculator.TryCompleteLine(roundedValue, out var preciseValue) && preciseValue == "0.358 = 0.358"
+                && Calculator.TryCompleteLine(preciseValue, out var stableValue) && stableValue == preciseValue, "Repeated calculation stops when exact decimals are visible");
+            Check(Calculator.TryCompleteLine("0.00001", out var tinyRounded) && tinyRounded == "0.00001 = 0"
+                && Calculator.TryCompleteLine(tinyRounded, out var tinyPrecise) && tinyPrecise == "0.00001 = 0.00001", "Repeated calculation finds meaningful small decimals");
+            Check(Calculator.TryCycleDisplayUnit("0.4825 = 0.48", out var percentValue) && percentValue == "0.4825 = 48.25%"
+                && Calculator.TryCycleDisplayUnit(percentValue, out var actualValue) && actualValue == "0.4825 = 0.48", "Unit cycle initially shows two decimals for sub-100 values");
+            Check(Calculator.TryCycleDisplayUnit("123/231 = 0.53", out var roundedPercent) && roundedPercent == "123/231 = 53.25%"
+                && Calculator.TryCompleteLine(roundedPercent, out var morePercent) && morePercent == "123/231 = 53.2468%", "Percentage cycle rounds to two decimals and can reveal more");
+            Check(Calculator.TryCycleDisplayUnit("560 = 560", out var kiloValue) && kiloValue == "560 = 0.56K", "Unit cycle offers K above 100");
+            Check(Calculator.TryCycleDisplayUnit("35000 = 35K", out var millionValue) && millionValue == "35000 = 0.035M", "Unit cycle preserves value in M");
+            Check(Calculator.TryCycleDisplayUnit("12321*4564 = 56.233M", out var billionValue) && billionValue == "12321*4564 = 0.0562B"
+                && Calculator.TryCompleteLine(billionValue, out var moreBillion) && moreBillion == "12321*4564 = 0.056233B", "Scaled unit starts at four decimals and can reveal more");
+            Check(Calculator.TryCycleDisplayUnit("5821230 = 5.82123M", out var noBillion) && noBillion == "5821230 = 5,821,230", "Unit cycle skips B below 0.01B");
+            Check(NumericText.TryAddSeparators("1234567.89", out var groupedNumber) && groupedNumber == "1,234,567.89", "Selected numbers gain thousand separators");
+            Check(NumericText.TryAddSeparators("1.5M", out var expandedNumber) && expandedNumber == "1,500,000", "Selected abbreviated numbers expand with separators");
+            Check(NumericText.TryToWords("1234", out var numberWords) && numberWords == "one thousand two hundred thirty-four", "Selected numbers convert to English words");
+            Check(NumericText.TryToWords("1.5M", out var millionWords) && millionWords == "one million five hundred thousand", "Selected abbreviated numbers convert to expanded words");
+            Check(NumericText.TryToWords("60%", out var percentWords) && percentWords == "sixty percent", "Percentages convert to words");
+            Check(!NumericText.TryAddSeparators("hello", out _), "Numeric actions reject text selections");
             Check(OcrTextCleaner.Clean("这 种 变 化", false) == "这种变化", "OCR removes spaces only between Chinese characters");
             Check(OcrTextCleaner.Clean("中 文 English words 123 中 文", false) == "中文 English words 123 中文", "OCR preserves English and number spacing");
             Check(OcrTextCleaner.Clean("变 化 ， 风 险 。 English 123", false) == "变化，风险。 English 123", "OCR removes spurious spaces around Chinese punctuation");
@@ -45,6 +76,21 @@ internal static class Program
                 Check(WordCounter.Count(input) == test.GetProperty("expected").GetInt32(), "Word-compatible count: " + System.Text.Json.JsonSerializer.Serialize(input));
             }
             var store = new StateStore(folder);
+            Check(!store.State.Settings.CopyOnHide, "Copy on hide defaults off");
+            store.State.Settings.CopyOnHide = true; store.Save();
+            Check(new StateStore(folder).State.Settings.CopyOnHide, "Copy on hide setting persists");
+            Check(store.RestoreDefaults(_ => true) && !store.State.Settings.CopyOnHide, "Restore defaults turns copy on hide off");
+            var pinStore = new StateStore(Path.Combine(folder, "pins"));
+            pinStore.State.Settings.HistoryLimit = 2; pinStore.Save();
+            pinStore.Remember("Pinned draft"); var pinnedId = pinStore.State.History[0].Id;
+            pinStore.TogglePin(pinnedId);
+            pinStore.Remember("Ordinary one"); pinStore.Remember("Ordinary two"); pinStore.Remember("Ordinary three");
+            Check(pinStore.State.History.Count == 3 && pinStore.State.History[0].Id == pinnedId && pinStore.State.History[0].Pinned, "Pinned history survives automatic trimming and stays first");
+            Check(new StateStore(pinStore.DirectoryPath).State.History[0].Pinned, "Pinned history survives restart");
+            pinStore.TogglePin(pinnedId);
+            Check(!pinStore.State.History.Any(entry => entry.Id == pinnedId), "Unpinned old history is subject to the limit");
+            pinStore.State.History.Clear(); pinStore.Save();
+            Check(new StateStore(pinStore.DirectoryPath).State.History.Count == 0, "Clear all removes pinned history too");
             Check(store.State.Settings.MarkdownShortcut == "Control+Shift+V", "Markdown shortcut defaults to Ctrl+Shift+V");
             store.State.Settings.MarkdownShortcut = "Control+Alt+M"; store.Save();
             Check(new StateStore(folder).State.Settings.MarkdownShortcut == "Control+Alt+M", "Custom Markdown shortcut survives restart");

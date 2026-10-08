@@ -37,6 +37,7 @@ internal static class CompatibilityChecks
         var state = new StateStore(profile);
         check(state.State.Draft == "Existing draft 中文" && state.State.History[0].Id == "existing-id" && state.State.History[0].Text == "旧笔记 日本語 العربية", ".NET 10 draft and history load without data migration");
         state.Save(); var reloaded = new StateStore(profile);
+        check(!File.ReadAllText(Path.Combine(profile, "state.json")).Contains("\"CopyShortcut\""), "Legacy manual copy shortcut is removed when settings are saved");
         check(reloaded.State.Settings.Shortcut == "Control+K" && reloaded.State.Settings.AlwaysOnTop && !reloaded.State.Settings.ShowWordCount && !reloaded.State.Settings.LightTheme && reloaded.State.Settings.HistoryLimit == 25 && reloaded.State.Settings.OcrLanguages.SequenceEqual(new[] { "eng", "jpn" }) && reloaded.State.History[0].CreatedAt.Offset == TimeSpan.FromHours(4), "Existing preferences and history timestamps survive a Framework save/reload");
     }
 }

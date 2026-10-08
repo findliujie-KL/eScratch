@@ -29,10 +29,16 @@ public partial class SettingsWindow : UserControl
         downloadNotice = new TransientNotice(DownloadStatus);
         var s = store.State.Settings;
         try { LoginBox.IsChecked = LoginStartup.Enabled; } catch (Exception ex) { LoginBox.IsEnabled = false; feedbackNotice.Show("Could not read startup setting: " + ex.Message); }
-        WordCountBox.IsChecked = s.ShowWordCount; TopmostBox.IsChecked = s.AlwaysOnTop; LightBox.IsChecked = s.LightTheme; WhitespaceBox.IsChecked = s.ShowWhitespace; JoinOcrLinesBox.IsChecked = s.JoinWrappedOcrLines;
+        CopyOnHideBox.IsChecked = s.CopyOnHide; WordCountBox.IsChecked = s.ShowWordCount; TopmostBox.IsChecked = s.AlwaysOnTop; LightBox.IsChecked = s.LightTheme; WhitespaceBox.IsChecked = s.ShowWhitespace; JoinOcrLinesBox.IsChecked = s.JoinWrappedOcrLines;
         HistoryLimitBox.Text = s.HistoryLimit.ToString();
         IndentBox.SelectedIndex = s.IndentType == "tab" ? 1 : 0; IndentSizeBox.SelectedIndex = s.IndentSize / 2 - 1;
-        ToggleBox.Text = s.Shortcut; MouseToggleBox.Text = s.MouseShortcut; NewBox.Text = s.NewShortcut; CopyBox.Text = s.CopyShortcut; MarkdownBox.Text = s.MarkdownShortcut;
+        ToggleBox.Text = s.Shortcut; MouseToggleBox.Text = s.MouseShortcut; NewBox.Text = s.NewShortcut; MarkdownBox.Text = s.MarkdownShortcut;
+        VersionText.Text = "eScratch version " + (typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "unknown") +
+#if NETFRAMEWORK
+            " · .NET Framework 4.8";
+#else
+            " · .NET 10";
+#endif
         LanguagePicker.ItemsSource = ocr.Catalog;
         LanguagePicker.AddHandler(TextBoxBase.TextChangedEvent, new TextChangedEventHandler(SearchLanguages));
         RefreshInstalled();
@@ -68,7 +74,7 @@ public partial class SettingsWindow : UserControl
     {
         if (Window.GetWindow(this) is not MainWindow window) return;
         window.ShowConfirmation("Restore defaults?",
-            "Turn off Start with Windows and reset shortcuts, theme, indentation, OCR selection to English, and the history limit to 10. Only the newest 10 history entries will remain. Your current draft and downloaded OCR languages will be kept.",
+            "Turn off Start with Windows and copy-on-hide, then reset shortcuts, theme, indentation, OCR selection to English, and the history limit to 10. Pinned entries and the newest 10 unpinned entries will remain. Your current draft and downloaded OCR languages will be kept.",
             "Restore defaults", RestoreDefaults, RestoreDefaultsButton);
     }
     private void RestoreDefaults()
@@ -87,16 +93,16 @@ public partial class SettingsWindow : UserControl
         if (!int.TryParse(HistoryLimitBox.Text, out var limit) || limit < 1 || limit > 1000) { feedbackNotice.Show("Enter a history limit between 1 and 1000."); return; }
         try
         {
-            var shortcuts = new[] { ToggleBox.Text, NewBox.Text, CopyBox.Text, MarkdownBox.Text }.Select(Hotkey.Parse).ToArray();
-            if (shortcuts[3].Key == Key.V && shortcuts[3].Modifiers == ModifierKeys.Control) { feedbackNotice.Show("Ctrl+V is reserved for normal Paste."); return; }
-            if (shortcuts.Select(k => (k.Key, k.Modifiers)).Distinct().Count() != 4) { feedbackNotice.Show("Choose different shortcuts for each action."); return; }
+            var shortcuts = new[] { ToggleBox.Text, NewBox.Text, MarkdownBox.Text }.Select(Hotkey.Parse).ToArray();
+            if (shortcuts[2].Key == Key.V && shortcuts[2].Modifiers == ModifierKeys.Control) { feedbackNotice.Show("Ctrl+V is reserved for normal Paste."); return; }
+            if (shortcuts.Select(k => (k.Key, k.Modifiers)).Distinct().Count() != 3) { feedbackNotice.Show("Choose different shortcuts for each action."); return; }
         }
         catch { feedbackNotice.Show("Record a valid shortcut in each field."); return; }
         if (!MouseToggleHook.TryParse(MouseToggleBox.Text, out _)) { feedbackNotice.Show("Record a valid middle-click gesture, or clear the mouse toggle."); return; }
-        if (limit < store.State.History.Count)
+        if (limit < store.State.History.Count(entry => !entry.Pinned))
         {
             if (Window.GetWindow(this) is MainWindow window)
-                window.ShowConfirmation("Reduce history?", $"Keep only the newest {limit} history entries? Older entries will be removed.", "Reduce history", () => SaveSettings(limit), SaveSettingsButton);
+                window.ShowConfirmation("Reduce history?", $"Keep pinned entries and the newest {limit} unpinned entries? Older unpinned entries will be removed.", "Reduce history", () => SaveSettings(limit), SaveSettingsButton);
             return;
         }
         SaveSettings(limit);
@@ -108,8 +114,8 @@ public partial class SettingsWindow : UserControl
         try { registerMouseShortcut(MouseToggleBox.Text); }
         catch (Exception ex) { registerShortcut(previousShortcut); feedbackNotice.Show(ex.Message); return; }
         var s = store.State.Settings;
-        s.Shortcut = ToggleBox.Text; s.MouseShortcut = MouseToggleBox.Text; s.NewShortcut = NewBox.Text; s.CopyShortcut = CopyBox.Text; s.MarkdownShortcut = MarkdownBox.Text;
-        s.ShowWordCount = WordCountBox.IsChecked == true; s.AlwaysOnTop = TopmostBox.IsChecked == true; s.LightTheme = LightBox.IsChecked == true; s.ShowWhitespace = WhitespaceBox.IsChecked == true; s.JoinWrappedOcrLines = JoinOcrLinesBox.IsChecked == true;
+        s.Shortcut = ToggleBox.Text; s.MouseShortcut = MouseToggleBox.Text; s.NewShortcut = NewBox.Text; s.MarkdownShortcut = MarkdownBox.Text;
+        s.CopyOnHide = CopyOnHideBox.IsChecked == true; s.ShowWordCount = WordCountBox.IsChecked == true; s.AlwaysOnTop = TopmostBox.IsChecked == true; s.LightTheme = LightBox.IsChecked == true; s.ShowWhitespace = WhitespaceBox.IsChecked == true; s.JoinWrappedOcrLines = JoinOcrLinesBox.IsChecked == true;
         s.HistoryLimit = limit; s.IndentType = IndentBox.SelectedIndex == 1 ? "tab" : "space"; s.IndentSize = (IndentSizeBox.SelectedIndex + 1) * 2;
         try { if (LoginBox.IsEnabled && (LoginBox.IsChecked == true) != LoginStartup.Enabled) LoginStartup.SetEnabled(LoginBox.IsChecked == true); store.Save(); changed(); Close(); } catch (Exception ex) { feedbackNotice.Show("Could not save: " + ex.Message); }
     }
