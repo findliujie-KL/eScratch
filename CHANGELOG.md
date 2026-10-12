@@ -2,7 +2,7 @@
 
 User-facing changes for this branch. “Unreleased” means changes after the last tagged baseline; development milestone dates are commit dates, not release dates. Installer files may have been updated separately from tags.
 
-## Unreleased
+## 3.0.0 — 2026-10-12
 
 - Book paper is now the default theme for new profiles and restored defaults; existing theme choices are preserved.
 

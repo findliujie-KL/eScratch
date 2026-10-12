@@ -1,100 +1,98 @@
-# eScratch for Windows — .NET Framework 4.8
+# eScratch 3.0
 
-See the [changelog](CHANGELOG.md) for unreleased improvements and earlier development milestones.
+A scratchpad one keyboard shortcut away. Capture a thought, draft a message, paste text from a screenshot, or work out a quick calculation.
 
-A lightweight native Windows scratchpad built with C# and WPF, targeting .NET Framework 4.8.
-This compatibility branch does not require .NET 10 to run. The .NET 10 version
-remains on `wpf-rewrite`; Electron remains on `main`.
-This branch contains the Windows application only.
+**The latest Windows edition uses WPF and .NET Framework 4.8. It does not require .NET 10 Desktop Runtime.** Active development is on [`wpf-net48`](https://github.com/findliujie-KL/eScratch/tree/wpf-net48).
 
-The gear opens Quick settings: toggle shortcut, reopen last scratch, open near the
-pointer, word count, and copy when hiding. Use **All settings** for grouped options,
-including fonts, startup, OCR, history, and shortcuts. Changes apply automatically;
-numeric fields apply on Enter or when leaving the field. Reducing history still
-requires confirmation. **Help & shortcuts** (also **F1**) shows current shortcut
-assignments and guidance for formatting, pasting, calculations, and zoom.
+## Download
 
-Under **All settings → Appearance**, choose Porcelain, Book paper (default),
-Sage notebook, or Drafting paper, and adjust texture intensity. Set it to 0% for
-a smooth surface. The toolbar sun/moon switches between the selected theme's
-light and dark palettes. Sage notebook rules track each rendered text row,
-including wrapping, font changes, and zoom.
+[**Download the Windows 3.0 installer**](https://github.com/findliujie-KL/eScratch/releases/download/v3.0.0-net48/eScratch-3.0.0-net48-win-x64-setup.exe) · [Release notes and checksums](https://github.com/findliujie-KL/eScratch/releases/tag/v3.0.0-net48)
 
-**All settings → Appearance → Text alignment** offers Left, Center, and Justify
-(default). Justify fills both edges of wrapped rows while keeping each paragraph's
-final row left aligned. Alignment changes display only, never the saved text.
+For Windows 10/11 x64. The compact installer checks for .NET Framework 4.8+ and the Visual C++ x64 runtime used by OCR, and offers downloads when needed. Packages are unsigned. Existing notes and settings are preserved.
 
-## Install
+## A place to write
 
-Build the portable ZIP and compact installer with the commands below. These net48
-packages are separate from the existing .NET 10 GitHub releases.
+![Book paper with sample notes and automatic calculation results](docs/images/book-paper.png)
 
-- **Portable:** extract the entire ZIP and run eScratch.exe. Keep its config, DLLs,
-  Assets and x64 folders together. Requires .NET Framework 4.8 or later and the
-  Visual C++ x64 runtime for OCR.
-- **Compact installer:** checks for Framework 4.8+ and Visual C++; offers downloads
-  from Microsoft when components are missing. No .NET 10 Desktop Runtime check.
-- Windows 10/11 x64 remain the supported target. No installer or portable package
-  embeds a modern .NET runtime. Settings stay in your Windows profile.
+*Actual WPF interface rendered with demonstration text, not personal notes.*
 
-## Develop
+- **Quick access:** Ctrl+J shows the window or brings it forward; press again while active to hide it. The shortcut is customizable. Closing hides the app to the tray; double-click the tray icon to reopen, or use its menu to quit.
+- **Simple formatting:** switch between editable bold, italic, strikethrough and their Markdown source. Notes remain plain Markdown. Headings, lists and tables are not rendered.
+- **Your paper:** Book paper is the default. Porcelain, Sage notebook and Drafting paper each have light/dark pairs and adjustable texture. Sage rules follow font size, wrapping and zoom.
+- **Your typography:** preview installed fonts, choose a base size, and use Left, Center or Justify alignment. Justify is the default. Zoom ranges from 75% to 250%.
+- **Choose how to resume:** start blank and archive the previous draft, or enable Reopen last scratch. Optionally open near the pointer, start with Windows, keep the window on top, or copy the draft when hiding. Copy-on-hide is off by default.
 
-Install a .NET SDK supporting C# 12 (8 or later), .NET Framework 4.8 or later,
-and Visual C++ x64 Redistributable, then run:
+## Calculations alongside your notes
+
+Type an expression on its own line, such as `23+56` or `1.5M * 60%`. A result appears at the right, outside the document: selecting or copying the note does not include it.
+
+Click a result to copy it. Right-click for equivalent plain, grouped, percentage or K/M/B/T formats. For example, `3.84M` can be copied as `3,840,000` or `3840K`.
+
+Ctrl+Enter explicitly inserts a result into the note. Repeating it reveals more useful decimal places without trailing zeros. Ctrl+Shift+Enter cycles display units. Select a number and right-click to add separators or convert it to English words.
+
+## History you can find again
+
+Ctrl+H opens a full-window sticky-note board. Search the complete text of saved notes, pin important items, or reopen a note. **Clear unpinned** keeps pinned notes and your current draft. The unpinned history limit defaults to 10 and is configurable.
+
+## Paste text, screenshots and Markdown
+
+- Normal paste uses clipboard text when available, including copied spreadsheet cells. Image-only clips use offline OCR.
+- English OCR is bundled. Download additional languages in All settings, select them and arrange their priority. Downloads require internet; recognition runs locally.
+- OCR cleans redundant spaces between Chinese characters and can join likely wrapped lines.
+- Paste as Markdown converts supported clipboard formatting. Word tracked deletions may be recovered on a best-effort basis when clipboard formats contain different versions of the text; complete revision recovery is not guaranteed.
+
+## Settings and shortcuts
+
+The gear opens **Quick settings** for the toggle shortcut, reopening the last scratch, opening near the pointer, word count and copy-on-hide. **All settings** groups appearance, startup, keyboard, OCR, history and editing options. Changes apply automatically; numeric fields apply on Enter or leaving the field.
+
+**F1** opens Help & shortcuts with your current shortcut assignments.
+
+| Action | Default shortcut |
+| --- | --- |
+| Show / hide window (system-wide) | Ctrl+J |
+| New scratch | Ctrl+T |
+| History | Ctrl+H |
+| Paste / screenshot OCR | Ctrl+V |
+| Paste as Markdown | Ctrl+Shift+V |
+| Bold / italic / strikethrough | Ctrl+B / Ctrl+I / Ctrl+Shift+X |
+| Insert calculation / more decimals | Ctrl+Enter |
+| Cycle calculation units | Ctrl+Shift+Enter |
+| Zoom / reset zoom | Ctrl+scroll / Ctrl+0 |
+| Help | F1 |
+
+Except for the window toggle, shortcuts operate inside eScratch. System-wide mouse-button triggers are no longer supported.
+
+## Editions and source branches
+
+| Edition | Branch | Status |
+| --- | --- | --- |
+| Windows 3.0 · .NET Framework 4.8 | [`wpf-net48`](https://github.com/findliujie-KL/eScratch/tree/wpf-net48) | Latest features and active development |
+| Windows · .NET 10 WPF | [`wpf-rewrite`](https://github.com/findliujie-KL/eScratch/tree/wpf-rewrite) | Earlier edition; updates deferred |
+| Electron · Windows, macOS, Linux | [`main`](https://github.com/findliujie-KL/eScratch/tree/main) | Earlier edition; does not yet contain all Windows 3.0 features |
+
+[All releases](https://github.com/findliujie-KL/eScratch/releases) remain available. Features described above apply to Windows 3.0.
+
+## Build and develop Windows 3.0
+
+Use the `wpf-net48` branch. Install a .NET SDK supporting C# 12 (8+), .NET Framework 4.8+, and the Visual C++ x64 runtime. The SDK is a development tool, not a runtime requirement for users.
 
 ```powershell
+git checkout wpf-net48
 ./windows/run.ps1
-```
 
-The scripts also support a workspace SDK in `.tools/dotnet`. The SDK is a build
-tool only; the generated EXE runs directly on Windows .NET Framework. The 4.8
-reference assemblies are restored through NuGet, so a separate targeting pack
-is not necessary.
-Open `windows/eScratch.slnx` in Visual Studio to edit the application.
-
-## Features
-
-- Editable inline Markdown: click the mode button to switch between formatted text (styled Abc) and Markdown source (*/~). Select text and use Ctrl+B, Ctrl+I or Ctrl+Shift+X (also in the right-click menu). Drafts and history remain plain Markdown. Headings and list markers stay visible.
-
-- Customizable scratch font and base size (8–48), with installed-font name completion and typeface previews in the dropdown
-- Full-window sticky-note history board, searchable across the complete text of saved notes
-
-- Global toggle shortcut brings a background window forward, then hides it when active; optional copy-on-hide is off by default
-- Tray-only operation, with no taskbar button
-- Optional startup at Windows login (off by default), quietly in the tray
-- Restoring the hidden/minimized editor saves the previous nonblank draft to History and opens a blank entry
-- For portable builds, keep the executable in the same location after enabling login startup
-- Toolbar pin toggles Always on Top
-- Optional persistent word count in the bottom-right corner (on by default)
-- Plain-text editor, light/dark themes, and customizable shortcuts
-- Configurable history (10 unpinned entries by default), persistent pins, and Clear unpinned (pinned notes are kept)
-- Offline screenshot OCR with English bundled, searchable language downloads,
-  editable language priority, Chinese spacing cleanup and optional joining of wrapped lines
-- Pasting copied spreadsheet cells uses their text rather than an included image preview; image-only clips use OCR
-- Restore defaults in Settings, with confirmation; keeps the draft and downloaded
-  languages, pinned history entries, and the newest 10 unpinned entries
-
-## Build and test
-
-```powershell
 dotnet build windows/eScratch.Tests/eScratch.Tests.csproj
 ./windows/eScratch.Tests/bin/Debug/net48/eScratch.Tests.exe
+
 ./windows/build.ps1 -Publish
 ./windows/build-installer.ps1
 ```
 
-See [the Windows development guide](windows/README.md) for prerequisites,
-package names, compatibility details, and testing.
+Portable builds are complete folders distributed as ZIPs, not single executable files. Keep the EXE, configuration, DLLs, Assets and x64 folders together. Build output is under `windows/artifacts/net48`.
 
-Existing .NET 10 WPF drafts, settings, history and downloaded OCR languages use
-the same data directory and schema. Exit the other WPF version before switching.
+Notes, settings and OCR languages are stored in `%LOCALAPPDATA%\eScratch\Wpf`, including for portable builds. The .NET 10 WPF edition shares this profile and application identity; exit it before switching editions. Uninstall preserves application data.
 
-### Word count
+[Windows development guide](https://github.com/findliujie-KL/eScratch/blob/wpf-net48/windows/README.md) · [Changelog](https://github.com/findliujie-KL/eScratch/blob/wpf-net48/CHANGELOG.md)
 
-The optional live counter follows Microsoft Word desktop counting conventions: East Asian characters (including Japanese kana, Korean syllables, and full-width punctuation) count individually; other text is counted in runs separated by Word-style boundaries. Standalone punctuation and emoji can contribute to the total. The implementation runs offline without Microsoft Word. Regression fixtures were measured using Word 16.0.19127 `Range.ComputeStatistics(wdStatisticWords)`; results in other Word versions or document structures may differ.
+## License and acknowledgements
 
-Press **Ctrl+H** while using the editor or History panel to show/hide History. This shortcut is local to eScratch.
-
-Press **Ctrl+Enter** at the end of an arithmetic line to append its result (for example, `35+456 = 491`). Each repeat reveals up to two more useful decimal places, up to 14, without adding trailing zeros. Press **Ctrl+Shift+Enter** to cycle equivalent result units (number/percent below 100, or number/K/M/B/T for larger values); units below 0.01 are skipped. The initial unit display uses two decimal places for percentages and up to four for K/M/B/T; Ctrl+Enter reveals more digits. Supports `+`, `-`, `*`, `/`, parentheses, decimals, percentages and units such as `K`, `M`, hundred, thousand and million (for example, `1.5M * 60% = 0.9M`). Select a number and right-click to add thousand separators or convert it to English words.
-
-Hold **Ctrl** and scroll over the editor to zoom its text from 75% to 250% in 10% steps. Press **Ctrl+0** to reset to 100% (⌘+0 also works on macOS).
+MIT-licensed, based on [lef237/one-time-editor](https://github.com/lef237/one-time-editor). Third-party components retain their own licenses; see [third-party notices](https://github.com/findliujie-KL/eScratch/blob/wpf-net48/windows/THIRD-PARTY-NOTICES.txt). The WPF editor includes AvalonEdit 6.3.1 with a documented local alignment patch.

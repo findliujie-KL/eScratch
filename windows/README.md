@@ -5,14 +5,14 @@ wpf-rewrite and Electron remains on main. This build targets Windows 10/11 x64,
 uses the Windows .NET Framework CLR, and needs no .NET 10 Desktop Runtime.
 .NET Framework 4.8.1 also satisfies the runtime requirement.
 
-## Features retained
+## Features
 
-- Tray-only UI, Ctrl+J show/hide, copy on hide, and configurable global shortcut.
+- Tray-only UI, Ctrl+J show/hide, configurable keyboard shortcut, and optional copy on hide (off by default).
 - Start with Windows (off by default), starting quietly in the tray.
-- Restoring from the tray archives the prior nonblank draft and opens a blank one.
-- Light/dark themes, toolbar Always on Top pin, word wrap, indentation and visible whitespace.
+- Restore to a blank scratch (archiving the prior draft), or enable Reopen last scratch.
+- Four light/dark paper themes, adjustable texture, custom fonts, Left/Center/Justify alignment, and toolbar Always on Top.
 - Ctrl+H History, Ctrl+T New, and configurable Ctrl+Shift+V Markdown paste.
-- History limit (10 by default), restore/delete/clear, and restore default settings.
+- Searchable sticky-note history, pinned notes, and configurable unpinned history limit (10 by default). Clear unpinned preserves pinned notes.
 - Offline native Tesseract screenshot OCR, PNG/Bitmap fallbacks and alpha repair.
 - Searchable OCR language downloads, editable priority for multiple selected languages,
   Chinese spacing cleanup, optional joining of wrapped lines, cancellation and removal.
@@ -65,8 +65,8 @@ The installer script uses .tools/inno/ISCC.exe by default, or accepts -Compiler
 with the path to Inno Setup 7. Outputs are isolated under windows/artifacts/net48:
 
 - portable/: complete application folder, including English OCR and library dependencies.
-- eScratch-2.1.0-net48-win-x64-portable.zip: extract all files and run eScratch.exe.
-- installer/eScratch-2.1.0-net48-win-x64-setup.exe: compact per-user installer.
+- eScratch-3.0.0-net48-win-x64-portable.zip: extract all files and run eScratch.exe.
+- installer/eScratch-3.0.0-net48-win-x64-setup.exe: compact per-user installer.
 
 Both need Framework 4.8+ and the Visual C++ x64 runtime for native OCR. No separate
 self-contained flavor is needed: the goal is to use Windows Framework rather
