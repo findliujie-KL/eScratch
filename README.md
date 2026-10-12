@@ -1,92 +1,98 @@
-# eScratch
+# eScratch 3.0
 
-A lightweight scratchpad that lives one shortcut away. Draft a message, hit the shortcut again, and it's already on your clipboard — ready to paste anywhere.
+A scratchpad one keyboard shortcut away. Capture a thought, draft a message, paste text from a screenshot, or work out a quick calculation.
 
-Built for the workflow of writing chat messages, AI prompts, and quick notes that you type once and send.
+**The latest Windows edition uses WPF and .NET Framework 4.8. It does not require .NET 10 Desktop Runtime.** Active development is on [`wpf-net48`](https://github.com/findliujie-KL/eScratch/tree/wpf-net48).
 
-[![Demo](https://img.youtube.com/vi/qwj9fr77vQg/maxresdefault.jpg)](https://youtu.be/qwj9fr77vQg)
+## Download
 
-https://youtu.be/qwj9fr77vQg
+[**Download the Windows 3.0 installer**](https://github.com/findliujie-KL/eScratch/releases/download/v3.0.0-net48/eScratch-3.0.0-net48-win-x64-setup.exe) · [Release notes and checksums](https://github.com/findliujie-KL/eScratch/releases/tag/v3.0.0-net48)
 
-## Install
+For Windows 10/11 x64. The compact installer checks for .NET Framework 4.8+ and the Visual C++ x64 runtime used by OCR, and offers downloads when needed. Packages are unsigned. Existing notes and settings are preserved.
 
-This fork publishes Electron builds for Windows, macOS, and Linux, plus a native WPF version for Windows. Choose a version from the [Releases](https://github.com/findliujie-KL/eScratch/releases) page:
+## A place to write
 
-- **Electron portable (main branch):** download the asset ending in `-portable.zip` from an Electron release, extract the entire folder, and run `eScratch.exe`. No installation or separate .NET runtime is required. English OCR is bundled; additional languages can be downloaded in Settings.
-- **Electron installer / Mac / Linux:** use the Windows Setup EXE, the DMG matching your Mac (arm64 for Apple silicon or x64 for Intel), or the Linux AppImage from the newest Electron release.
-- **WPF for Windows (wpf-rewrite branch):** choose the compact Setup EXE or extract the entire portable ZIP from the newest stable WPF release. The compact installer can download .NET 10 Desktop Runtime (x64) and Visual C++ runtime when needed. The portable ZIP includes .NET; native OCR still needs the Visual C++ x64 runtime.
+![Book paper with sample notes and automatic calculation results](docs/images/book-paper.png)
 
-The Electron portable ZIP contains the executable, runtime DLLs, resources and OCR dependencies. Keep the entire extracted folder together. Settings, draft history, and downloaded OCR languages are stored in your Windows user profile, not beside the executable. Closing the editor hides it to the tray; use the tray menu to quit fully.
+*Actual WPF interface rendered with demonstration text, not personal notes.*
 
-These builds are unsigned; Mac builds are not notarized.
+- **Quick access:** Ctrl+J shows the window or brings it forward; press again while active to hide it. The shortcut is customizable. Closing hides the app to the tray; double-click the tray icon to reopen, or use its menu to quit.
+- **Simple formatting:** switch between editable bold, italic, strikethrough and their Markdown source. Notes remain plain Markdown. Headings, lists and tables are not rendered.
+- **Your paper:** Book paper is the default. Porcelain, Sage notebook and Drafting paper each have light/dark pairs and adjustable texture. Sage rules follow font size, wrapping and zoom.
+- **Your typography:** preview installed fonts, choose a base size, and use Left, Center or Justify alignment. Justify is the default. Zoom ranges from 75% to 250%.
+- **Choose how to resume:** start blank and archive the previous draft, or enable Reopen last scratch. Optionally open near the pointer, start with Windows, keep the window on top, or copy the draft when hiding. Copy-on-hide is off by default.
 
-## How it works
+## Calculations alongside your notes
 
-1. Press `Ctrl+J` to summon the editor
-2. Type your text
-3. Press the shortcut again — the window disappears and your text is copied to clipboard
-4. Paste wherever you need it
+Type an expression on its own line, such as `23+56` or `1.5M * 60%`. A result appears at the right, outside the document: selecting or copying the note does not include it.
 
-That's it. No save dialog, no file management, no friction.
+Click a result to copy it. Right-click for equivalent plain, grouped, percentage or K/M/B/T formats. For example, `3.84M` can be copied as `3,840,000` or `3840K`.
 
-The shortcut is fully customizable — open settings and press your preferred key combination to change it.
+Ctrl+Enter explicitly inserts a result into the note. Repeating it reveals more useful decimal places without trailing zeros. Ctrl+Shift+Enter cycles display units. Select a number and right-click to add separators or convert it to English words.
 
-The app lives in the system tray (menu bar on macOS), with no taskbar or Dock icon. Restoring a hidden or minimized editor saves the previous nonblank draft to History and starts a blank entry. Bringing an already-visible window into focus keeps its text.
+## History you can find again
 
-## Features
+Ctrl+H opens a full-window sticky-note board. Search the complete text of saved notes, pin important items, or reopen a note. **Clear unpinned** keeps pinned notes and your current draft. The unpinned history limit defaults to 10 and is configurable.
 
-- **Instant toggle** — Global shortcut brings up the editor from any app, and hides it just as fast
-- **Auto-copy on hide** — Text is copied to clipboard when the window is dismissed via shortcut
-- **Focus restore** — On macOS, focus returns to the app you were using before
-- **History** — Past entries are saved automatically when you start a new draft (10 by default; configurable in Settings)
-- **Always on Top** — Toggle the toolbar pin to keep the editor above other windows
-- **Live word count** — Word-compatible counting in the bottom-right corner; show/hide it in Settings
-- **Dark / Light theme** — Toggle between dark and light mode
-- **Configurable shortcut** — Change the global shortcut in settings by pressing your desired key combination
-- **Show whitespace** — Optionally reveal spaces, tabs, and full-width spaces as visible markers
-- **Screenshot OCR** — Paste an image to insert its recognized text directly into the editor
-- **Downloadable OCR languages** — Install languages for offline use and set their recognition priority with the arrows. OCR removes spurious spaces between Chinese characters and can join wrapped lines; turn line joining off for lists or line-by-line material.
-- **Start at login** — Optional in Settings on Windows/macOS; off by default, launches quietly in the tray. Keep portable executables in the same location after enabling it.
-- **Windows tray mode** — Closing the window keeps the app in the system tray; double-click the tray icon to restore it
+## Paste text, screenshots and Markdown
 
-## Development
+- Normal paste uses clipboard text when available, including copied spreadsheet cells. Image-only clips use offline OCR.
+- English OCR is bundled. Download additional languages in All settings, select them and arrange their priority. Downloads require internet; recognition runs locally.
+- OCR cleans redundant spaces between Chinese characters and can join likely wrapped lines.
+- Paste as Markdown converts supported clipboard formatting. Word tracked deletions may be recovered on a best-effort basis when clipboard formats contain different versions of the text; complete revision recovery is not guaranteed.
 
-```bash
-npm install
-npm run dev
+## Settings and shortcuts
+
+The gear opens **Quick settings** for the toggle shortcut, reopening the last scratch, opening near the pointer, word count and copy-on-hide. **All settings** groups appearance, startup, keyboard, OCR, history and editing options. Changes apply automatically; numeric fields apply on Enter or leaving the field.
+
+**F1** opens Help & shortcuts with your current shortcut assignments.
+
+| Action | Default shortcut |
+| --- | --- |
+| Show / hide window (system-wide) | Ctrl+J |
+| New scratch | Ctrl+T |
+| History | Ctrl+H |
+| Paste / screenshot OCR | Ctrl+V |
+| Paste as Markdown | Ctrl+Shift+V |
+| Bold / italic / strikethrough | Ctrl+B / Ctrl+I / Ctrl+Shift+X |
+| Insert calculation / more decimals | Ctrl+Enter |
+| Cycle calculation units | Ctrl+Shift+Enter |
+| Zoom / reset zoom | Ctrl+scroll / Ctrl+0 |
+| Help | F1 |
+
+Except for the window toggle, shortcuts operate inside eScratch. System-wide mouse-button triggers are no longer supported.
+
+## Editions and source branches
+
+| Edition | Branch | Status |
+| --- | --- | --- |
+| Windows 3.0 · .NET Framework 4.8 | [`wpf-net48`](https://github.com/findliujie-KL/eScratch/tree/wpf-net48) | Latest features and active development |
+| Windows · .NET 10 WPF | [`wpf-rewrite`](https://github.com/findliujie-KL/eScratch/tree/wpf-rewrite) | Earlier edition; updates deferred |
+| Electron · Windows, macOS, Linux | [`main`](https://github.com/findliujie-KL/eScratch/tree/main) | Earlier edition; does not yet contain all Windows 3.0 features |
+
+[All releases](https://github.com/findliujie-KL/eScratch/releases) remain available. Features described above apply to Windows 3.0.
+
+## Build and develop Windows 3.0
+
+Use the `wpf-net48` branch. Install a .NET SDK supporting C# 12 (8+), .NET Framework 4.8+, and the Visual C++ x64 runtime. The SDK is a development tool, not a runtime requirement for users.
+
+```powershell
+git checkout wpf-net48
+./windows/run.ps1
+
+dotnet build windows/eScratch.Tests/eScratch.Tests.csproj
+./windows/eScratch.Tests/bin/Debug/net48/eScratch.Tests.exe
+
+./windows/build.ps1 -Publish
+./windows/build-installer.ps1
 ```
 
-Run the main-process behavior tests with:
+Portable builds are complete folders distributed as ZIPs, not single executable files. Keep the EXE, configuration, DLLs, Assets and x64 folders together. Build output is under `windows/artifacts/net48`.
 
-```bash
-node --test tests/menu-bar.cjs tests/mac-release.cjs tests/resume.cjs tests/word-count.cjs
-npm run test:markdown
-```
+Notes, settings and OCR languages are stored in `%LOCALAPPDATA%\eScratch\Wpf`, including for portable builds. The .NET 10 WPF edition shares this profile and application identity; exit it before switching editions. Uninstall preserves application data.
 
-## Tech Stack
+[Windows development guide](https://github.com/findliujie-KL/eScratch/blob/wpf-net48/windows/README.md) · [Changelog](https://github.com/findliujie-KL/eScratch/blob/wpf-net48/CHANGELOG.md)
 
-Electron + React + TypeScript, bundled with Vite.
+## License and acknowledgements
 
-## Paste as Markdown
-
-Right-click in the editor for Paste (including screenshot OCR) or Paste as Markdown.
-Ctrl+Shift+V invokes Paste as Markdown while the editor has focus. Change it in
-Settings; Restore defaults resets it to Ctrl+Shift+V. Ctrl+V remains normal Paste.
-
-Markdown paste converts basic headings, bold/italic/strikethrough, links, and lists
-to visible plain-text Markdown. Plain-text-only content is left unchanged; image-only
-clipboards use normal Paste instead. Complex document layouts are not reproduced.
-
-When plain text, HTML, and RTF are present together, it attempts deletion recovery
-by comparing normalized plain text against the HTML text. A unique deletion-only
-alignment produces strikethrough, e.g. pigdog versus dog becomes ~~pig~~dog.
-Ambiguous alignments fall back to ordinary Markdown conversion. This is a heuristic,
-not Word revision metadata: unrelated differences between clipboard formats can also
-look like deletions. Insertions are not inferred. RTF presence enables the heuristic;
-HTML supplies the formatting. Clipboard content is processed locally.
-
-### Word count
-
-The optional live counter follows Microsoft Word desktop counting conventions: East Asian characters (including Japanese kana, Korean syllables, and full-width punctuation) count individually; other text is counted in runs separated by Word-style boundaries. Standalone punctuation and emoji can contribute to the total. The implementation runs offline without Microsoft Word. Regression fixtures were measured using Word 16.0.19127 `Range.ComputeStatistics(wdStatisticWords)`; results in other Word versions or document structures may differ.
-
-Press **⌘ Command+Y** on macOS or **Ctrl+H** on Windows/Linux while using the editor or History panel to show/hide History. This shortcut is local to eScratch.
+MIT-licensed, based on [lef237/one-time-editor](https://github.com/lef237/one-time-editor). Third-party components retain their own licenses; see [third-party notices](https://github.com/findliujie-KL/eScratch/blob/wpf-net48/windows/THIRD-PARTY-NOTICES.txt). The WPF editor includes AvalonEdit 6.3.1 with a documented local alignment patch.
