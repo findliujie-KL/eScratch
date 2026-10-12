@@ -1,6 +1,9 @@
 using System;
 using System.Linq;
+using System.Globalization;
+using System.Windows.Media;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -10,29 +13,43 @@ namespace eScratch;
 public partial class SettingsWindow : UserControl
 {
     public event EventHandler? Closed;
-    public void Close() { suspendMouseHook(false); feedbackNotice.Dispose(); downloadNotice.Dispose(); download?.Cancel(); Closed?.Invoke(this, EventArgs.Empty); }
+    public void Close() { closed = true; feedbackNotice.Dispose(); downloadNotice.Dispose(); download?.Cancel(); Closed?.Invoke(this, EventArgs.Empty); }
     private readonly StateStore store;
     private readonly OcrService ocr;
     private readonly Func<string, bool> registerShortcut;
-    private readonly Action<string> registerMouseShortcut;
-    private readonly Action<bool> suspendMouseHook;
     private readonly Action changed;
     private CancellationTokenSource? download;
     private bool filtering;
+    private bool closed;
+    private ScratchFont[] fonts = Array.Empty<ScratchFont>();
+    private static readonly Lazy<Task<ScratchFont[]>> fontCatalog = new(() => Task.Run(() =>
+        new[] { new FontFamily("Cascadia Code, Consolas") }.Concat(Fonts.SystemFontFamilies)
+            .Where(ScratchFont.IsTextFont).Select(f => new ScratchFont(f)).OrderBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase).ToArray()));
+    public static void PreloadFonts() { _ = fontCatalog.Value; }
+    private ScratchFont? FindFont(string name) => fonts.FirstOrDefault(f =>
+        string.Equals(f.Name, name, StringComparison.CurrentCultureIgnoreCase) || string.Equals(f.Source, name, StringComparison.CurrentCultureIgnoreCase));
     private readonly TransientNotice feedbackNotice;
     private readonly TransientNotice downloadNotice;
-    public SettingsWindow(StateStore store, OcrService ocr, Func<string, bool> registerShortcut, Action<string> registerMouseShortcut, Action<bool> suspendMouseHook, Action changed)
+    public SettingsWindow(StateStore store, OcrService ocr, Func<string, bool> registerShortcut, Action changed)
     {
-        this.store = store; this.ocr = ocr; this.registerShortcut = registerShortcut; this.registerMouseShortcut = registerMouseShortcut; this.suspendMouseHook = suspendMouseHook; this.changed = changed;
+        this.store = store; this.ocr = ocr; this.registerShortcut = registerShortcut; this.changed = changed;
         InitializeComponent();
         feedbackNotice = new TransientNotice(Feedback);
         downloadNotice = new TransientNotice(DownloadStatus);
         var s = store.State.Settings;
+        AlignmentBox.ItemsSource = new[] { "Left", "Center", "Justify" }; AlignmentBox.SelectedItem = s.ScratchAlignment;
+        PaperThemeBox.ItemsSource = PaperThemes.Names; PaperThemeBox.SelectedItem = s.PaperTheme;
+        TextureSlider.Value = s.TextureIntensity;
+        fonts = new[] { new ScratchFont(new FontFamily("Cascadia Code, Consolas")), new ScratchFont(new FontFamily(s.ScratchFontFamily)) };
+        FontPicker.ItemsSource = fonts;
+        FontPicker.Text = FindFont(s.ScratchFontFamily)?.Name ?? "Cascadia Code, Consolas";
+        CommitFontPreview();
+        FontSizeBox.Text = s.ScratchFontSize.ToString(CultureInfo.CurrentCulture);
         try { LoginBox.IsChecked = LoginStartup.Enabled; } catch (Exception ex) { LoginBox.IsEnabled = false; feedbackNotice.Show("Could not read startup setting: " + ex.Message); }
-        CopyOnHideBox.IsChecked = s.CopyOnHide; WordCountBox.IsChecked = s.ShowWordCount; TopmostBox.IsChecked = s.AlwaysOnTop; LightBox.IsChecked = s.LightTheme; WhitespaceBox.IsChecked = s.ShowWhitespace; JoinOcrLinesBox.IsChecked = s.JoinWrappedOcrLines;
+        OpenNearPointerBox.IsChecked = s.OpenNearPointer; ReopenLastScratchBox.IsChecked = s.ReopenLastScratch; CopyOnHideBox.IsChecked = s.CopyOnHide; WordCountBox.IsChecked = s.ShowWordCount; TopmostBox.IsChecked = s.AlwaysOnTop; LightBox.IsChecked = s.LightTheme; WhitespaceBox.IsChecked = s.ShowWhitespace; JoinOcrLinesBox.IsChecked = s.JoinWrappedOcrLines;
         HistoryLimitBox.Text = s.HistoryLimit.ToString();
         IndentBox.SelectedIndex = s.IndentType == "tab" ? 1 : 0; IndentSizeBox.SelectedIndex = s.IndentSize / 2 - 1;
-        ToggleBox.Text = s.Shortcut; MouseToggleBox.Text = s.MouseShortcut; NewBox.Text = s.NewShortcut; MarkdownBox.Text = s.MarkdownShortcut;
+        ToggleBox.Text = s.Shortcut; NewBox.Text = s.NewShortcut; MarkdownBox.Text = s.MarkdownShortcut;
         VersionText.Text = "eScratch version " + (typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "unknown") +
 #if NETFRAMEWORK
             " · .NET Framework 4.8";
@@ -43,6 +60,36 @@ public partial class SettingsWindow : UserControl
         LanguagePicker.AddHandler(TextBoxBase.TextChangedEvent, new TextChangedEventHandler(SearchLanguages));
         RefreshInstalled();
         Closed += (_, _) => download?.Cancel();
+        FontPicker.IsEnabled = false;
+        _ = LoadFontsAsync();
+        InitializePages();
+    }
+    private async Task LoadFontsAsync()
+    {
+        try
+        {
+            var catalog = await fontCatalog.Value.ConfigureAwait(false);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (closed) return;
+                var selected = FindFont(FontPicker.Text)?.Source ?? store.State.Settings.ScratchFontFamily;
+                fonts = catalog;
+                FontPicker.ItemsSource = fonts;
+                FontPicker.Text = FindFont(selected)?.Name ?? "Cascadia Code, Consolas";
+                CommitFontPreview();
+                FontPicker.IsEnabled = true;
+                FontLoadingText.Visibility = Visibility.Collapsed;
+            });
+        }
+        catch (Exception)
+        {
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (closed) return;
+                FontLoadingText.Text = "The full font list could not be loaded. Your current font is available.";
+                FontPicker.IsEnabled = true;
+            });
+        }
     }
     private void RecordShortcut(object sender, KeyEventArgs e)
     {
@@ -51,30 +98,42 @@ public partial class SettingsWindow : UserControl
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin) return;
         if (Keyboard.Modifiers == ModifierKeys.None) { feedbackNotice.Show("Include Ctrl, Alt, Shift or Windows in a shortcut."); return; }
-        try { ((TextBox)sender).Text = new KeyGestureConverter().ConvertToInvariantString(new KeyGesture(key, Keyboard.Modifiers))!; feedbackNotice.Show(""); }
+        try
+        {
+            var box = (TextBox)sender;
+            box.Text = new KeyGestureConverter().ConvertToInvariantString(new KeyGesture(key, Keyboard.Modifiers))!;
+            feedbackNotice.Show(""); SaveClick(sender, e);
+            box.Text = box == ToggleBox ? store.State.Settings.Shortcut : box == NewBox ? store.State.Settings.NewShortcut : store.State.Settings.MarkdownShortcut;
+        }
         catch (Exception) { feedbackNotice.Show("That key combination cannot be used."); }
     }
-    private void BeginMouseCapture(object sender, KeyboardFocusChangedEventArgs e) => suspendMouseHook(true);
-    private void EndMouseCapture(object sender, KeyboardFocusChangedEventArgs e) => suspendMouseHook(false);
-    private void ClearMouseShortcut(object sender, RoutedEventArgs e) { MouseToggleBox.Text = ""; feedbackNotice.Show(""); }
-    private void RecordMouseShortcut(object sender, MouseButtonEventArgs e)
+    private void ResetFontClick(object sender, RoutedEventArgs e)
     {
-        if (e.ChangedButton != MouseButton.Middle) return;
-        e.Handled = true;
-        var keys = Keyboard.Modifiers;
-        var prefix = keys == ModifierKeys.None ? "" : string.Join("+", new[] {
-            keys.HasFlag(ModifierKeys.Control) ? "Control" : "",
-            keys.HasFlag(ModifierKeys.Shift) ? "Shift" : "",
-            keys.HasFlag(ModifierKeys.Alt) ? "Alt" : "",
-            keys.HasFlag(ModifierKeys.Windows) ? "Windows" : "" }.Where(x => x.Length != 0)) + "+";
-        MouseToggleBox.Text = prefix + "MiddleClick";
-        feedbackNotice.Show("");
+        FontPicker.Text = "Cascadia Code, Consolas";
+        FontSizeBox.Text = "14"; FontPicker.IsDropDownOpen = false;
+        CommitFontPreview();
+        SaveClick(sender, e);
+    }
+    private void FontSelectionCommitted(object? sender, EventArgs e) { CommitFontPreview(); SaveClick(this, new RoutedEventArgs()); }
+    private void FontPickerLostFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (!FontPicker.IsKeyboardFocusWithin && !FontPicker.IsDropDownOpen) { CommitFontPreview(); SaveClick(sender, e); }
+    }
+    private void FontPickerKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        FontPicker.IsDropDownOpen = false; CommitFontPreview(); SaveClick(sender, e); e.Handled = true;
+    }
+    private void CommitFontPreview()
+    {
+        var font = FindFont(FontPicker.Text);
+        if (font != null) FontPicker.FontFamily = new FontFamily(font.Source);
     }
     private void RestoreDefaultsClick(object sender, RoutedEventArgs e)
     {
         if (Window.GetWindow(this) is not MainWindow window) return;
         window.ShowConfirmation("Restore defaults?",
-            "Turn off Start with Windows and copy-on-hide, then reset shortcuts, theme, indentation, OCR selection to English, and the history limit to 10. Pinned entries and the newest 10 unpinned entries will remain. Your current draft and downloaded OCR languages will be kept.",
+            "Turn off Start with Windows and copy-on-hide, then reset shortcuts, font, theme, indentation, OCR selection to English, and the history limit to 10. Pinned entries and the newest 10 unpinned entries will remain. Your current draft and downloaded OCR languages will be kept.",
             "Restore defaults", RestoreDefaults, RestoreDefaultsButton);
     }
     private void RestoreDefaults()
@@ -82,7 +141,6 @@ public partial class SettingsWindow : UserControl
         try
         {
             if (!store.RestoreDefaults(registerShortcut)) { feedbackNotice.Show("The default shortcut is in use by another app. Close that app and retry. No settings were changed."); return; }
-            registerMouseShortcut("");
             LoginStartup.SetEnabled(false);
             changed(); Close();
         }
@@ -90,6 +148,9 @@ public partial class SettingsWindow : UserControl
     }
     private void SaveClick(object sender, RoutedEventArgs e)
     {
+        if (!pagesReady || closed) return;
+        if (FindFont(FontPicker.Text) == null) { feedbackNotice.Show("Choose an installed font from the list."); return; }
+        if (!double.TryParse(FontSizeBox.Text, out var fontSize) || double.IsNaN(fontSize) || fontSize < 8 || fontSize > 48) { feedbackNotice.Show("Enter a font size between 8 and 48."); return; }
         if (!int.TryParse(HistoryLimitBox.Text, out var limit) || limit < 1 || limit > 1000) { feedbackNotice.Show("Enter a history limit between 1 and 1000."); return; }
         try
         {
@@ -98,11 +159,10 @@ public partial class SettingsWindow : UserControl
             if (shortcuts.Select(k => (k.Key, k.Modifiers)).Distinct().Count() != 3) { feedbackNotice.Show("Choose different shortcuts for each action."); return; }
         }
         catch { feedbackNotice.Show("Record a valid shortcut in each field."); return; }
-        if (!MouseToggleHook.TryParse(MouseToggleBox.Text, out _)) { feedbackNotice.Show("Record a valid middle-click gesture, or clear the mouse toggle."); return; }
         if (limit < store.State.History.Count(entry => !entry.Pinned))
         {
             if (Window.GetWindow(this) is MainWindow window)
-                window.ShowConfirmation("Reduce history?", $"Keep pinned entries and the newest {limit} unpinned entries? Older unpinned entries will be removed.", "Reduce history", () => SaveSettings(limit), SaveSettingsButton);
+                window.ShowConfirmation("Reduce history?", $"Keep pinned entries and the newest {limit} unpinned entries? Older unpinned entries will be removed.", "Reduce history", () => SaveSettings(limit), HistoryLimitBox);
             return;
         }
         SaveSettings(limit);
@@ -110,14 +170,15 @@ public partial class SettingsWindow : UserControl
     private void SaveSettings(int limit)
     {
         var previousShortcut = store.State.Settings.Shortcut;
-        if (!registerShortcut(ToggleBox.Text)) { feedbackNotice.Show("That global shortcut is already in use. Please choose another."); return; }
-        try { registerMouseShortcut(MouseToggleBox.Text); }
-        catch (Exception ex) { registerShortcut(previousShortcut); feedbackNotice.Show(ex.Message); return; }
-        var s = store.State.Settings;
-        s.Shortcut = ToggleBox.Text; s.MouseShortcut = MouseToggleBox.Text; s.NewShortcut = NewBox.Text; s.MarkdownShortcut = MarkdownBox.Text;
-        s.CopyOnHide = CopyOnHideBox.IsChecked == true; s.ShowWordCount = WordCountBox.IsChecked == true; s.AlwaysOnTop = TopmostBox.IsChecked == true; s.LightTheme = LightBox.IsChecked == true; s.ShowWhitespace = WhitespaceBox.IsChecked == true; s.JoinWrappedOcrLines = JoinOcrLinesBox.IsChecked == true;
+        if (ToggleBox.Text != previousShortcut && !registerShortcut(ToggleBox.Text)) { ToggleBox.Text = previousShortcut; feedbackNotice.Show("That global shortcut is already in use. Please choose another."); return; }
+var s = store.State.Settings;
+        s.PaperTheme = PaperThemeBox.SelectedItem as string ?? "Book paper"; s.TextureIntensity = TextureSlider.Value;
+        s.ScratchAlignment = AlignmentBox.SelectedItem as string ?? "Justify";
+        s.ScratchFontFamily = FindFont(FontPicker.Text)!.Source; s.ScratchFontSize = double.Parse(FontSizeBox.Text, CultureInfo.CurrentCulture);
+        s.Shortcut = ToggleBox.Text; s.NewShortcut = NewBox.Text; s.MarkdownShortcut = MarkdownBox.Text;
+        s.OpenNearPointer = OpenNearPointerBox.IsChecked == true; s.ReopenLastScratch = ReopenLastScratchBox.IsChecked == true; s.CopyOnHide = CopyOnHideBox.IsChecked == true; s.ShowWordCount = WordCountBox.IsChecked == true; s.AlwaysOnTop = TopmostBox.IsChecked == true; s.LightTheme = LightBox.IsChecked == true; s.ShowWhitespace = WhitespaceBox.IsChecked == true; s.JoinWrappedOcrLines = JoinOcrLinesBox.IsChecked == true;
         s.HistoryLimit = limit; s.IndentType = IndentBox.SelectedIndex == 1 ? "tab" : "space"; s.IndentSize = (IndentSizeBox.SelectedIndex + 1) * 2;
-        try { if (LoginBox.IsEnabled && (LoginBox.IsChecked == true) != LoginStartup.Enabled) LoginStartup.SetEnabled(LoginBox.IsChecked == true); store.Save(); changed(); Close(); } catch (Exception ex) { feedbackNotice.Show("Could not save: " + ex.Message); }
+        try { if (LoginBox.IsEnabled && (LoginBox.IsChecked == true) != LoginStartup.Enabled) LoginStartup.SetEnabled(LoginBox.IsChecked == true); store.Save(); changed(); } catch (Exception ex) { feedbackNotice.Show("Could not save: " + ex.Message); }
     }
     private void SearchLanguages(object sender, TextChangedEventArgs e)
     {

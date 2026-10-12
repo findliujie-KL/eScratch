@@ -7,6 +7,23 @@ This compatibility branch does not require .NET 10 to run. The .NET 10 version
 remains on `wpf-rewrite`; Electron remains on `main`.
 This branch contains the Windows application only.
 
+The gear opens Quick settings: toggle shortcut, reopen last scratch, open near the
+pointer, word count, and copy when hiding. Use **All settings** for grouped options,
+including fonts, startup, OCR, history, and shortcuts. Changes apply automatically;
+numeric fields apply on Enter or when leaving the field. Reducing history still
+requires confirmation. **Help & shortcuts** (also **F1**) shows current shortcut
+assignments and guidance for formatting, pasting, calculations, and zoom.
+
+Under **All settings → Appearance**, choose Porcelain, Book paper (default),
+Sage notebook, or Drafting paper, and adjust texture intensity. Set it to 0% for
+a smooth surface. The toolbar sun/moon switches between the selected theme's
+light and dark palettes. Sage notebook rules track each rendered text row,
+including wrapping, font changes, and zoom.
+
+**All settings → Appearance → Text alignment** offers Left, Center, and Justify
+(default). Justify fills both edges of wrapped rows while keeping each paragraph's
+final row left aligned. Alignment changes display only, never the saved text.
+
 ## Install
 
 Build the portable ZIP and compact installer with the commands below. These net48
@@ -37,16 +54,20 @@ Open `windows/eScratch.slnx` in Visual Studio to edit the application.
 
 ## Features
 
+- Editable inline Markdown: click the mode button to switch between formatted text (styled Abc) and Markdown source (*/~). Select text and use Ctrl+B, Ctrl+I or Ctrl+Shift+X (also in the right-click menu). Drafts and history remain plain Markdown. Headings and list markers stay visible.
+
+- Customizable scratch font and base size (8–48), with installed-font name completion and typeface previews in the dropdown
+- Full-window sticky-note history board, searchable across the complete text of saved notes
+
 - Global toggle shortcut brings a background window forward, then hides it when active; optional copy-on-hide is off by default
 - Tray-only operation, with no taskbar button
-- Optional system-wide middle-click or modifier + middle-click toggle, recorded in Settings; matching clicks are consumed
 - Optional startup at Windows login (off by default), quietly in the tray
 - Restoring the hidden/minimized editor saves the previous nonblank draft to History and opens a blank entry
 - For portable builds, keep the executable in the same location after enabling login startup
 - Toolbar pin toggles Always on Top
 - Optional persistent word count in the bottom-right corner (on by default)
 - Plain-text editor, light/dark themes, and customizable shortcuts
-- Configurable history (10 unpinned entries by default), persistent pins, and Clear All (including pinned entries)
+- Configurable history (10 unpinned entries by default), persistent pins, and Clear unpinned (pinned notes are kept)
 - Offline screenshot OCR with English bundled, searchable language downloads,
   editable language priority, Chinese spacing cleanup and optional joining of wrapped lines
 - Pasting copied spreadsheet cells uses their text rather than an included image preview; image-only clips use OCR

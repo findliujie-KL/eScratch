@@ -9,17 +9,24 @@ namespace eScratch;
 public sealed class Settings
 {
     public string Shortcut { get; set; } = "Control+J";
-    public string MouseShortcut { get; set; } = "";
     public string NewShortcut { get; set; } = "Control+T";
     public string MarkdownShortcut { get; set; } = "Control+Shift+V";
     public bool ShowWordCount { get; set; } = true;
     public bool CopyOnHide { get; set; }
+    public bool OpenNearPointer { get; set; }
+    public bool ReopenLastScratch { get; set; }
+    public bool FormattedView { get; set; }
+    public string ScratchFontFamily { get; set; } = "Cascadia Code, Consolas";
+    public double ScratchFontSize { get; set; } = 14;
     public bool AlwaysOnTop { get; set; }
     public string IndentType { get; set; } = "space";
     public int IndentSize { get; set; } = 2;
     public bool ShowWhitespace { get; set; }
     public int HistoryLimit { get; set; } = 10;
     public bool LightTheme { get; set; } = true;
+    public string PaperTheme { get; set; } = "Book paper";
+    public string ScratchAlignment { get; set; } = "Justify";
+    public double TextureIntensity { get; set; } = 28;
     public List<string> OcrLanguages { get; set; } = ["eng"];
     public bool JoinWrappedOcrLines { get; set; } = true;
 }
@@ -83,11 +90,16 @@ public sealed class StateStore
     {
         State.Settings ??= new(); State.History ??= []; State.Draft ??= "";
         var s = State.Settings;
+        if (!new[] { "Left", "Center", "Justify" }.Contains(s.ScratchAlignment)) s.ScratchAlignment = "Justify";
+        if (!PaperThemes.Names.Contains(s.PaperTheme)) s.PaperTheme = "Book paper";
+        s.TextureIntensity = double.IsNaN(s.TextureIntensity) || double.IsInfinity(s.TextureIntensity) ? 28 : Math.Max(0, Math.Min(100, s.TextureIntensity));
         s.Shortcut = ValidShortcut(s.Shortcut, "Control+J");
-        if (!MouseToggleHook.TryParse(s.MouseShortcut, out _)) s.MouseShortcut = "";
         s.NewShortcut = ValidShortcut(s.NewShortcut, "Control+T");
         s.MarkdownShortcut = ValidShortcut(s.MarkdownShortcut, "Control+Shift+V");
         s.HistoryLimit = Math.Max(1, Math.Min(1000, s.HistoryLimit));
+        if (string.IsNullOrWhiteSpace(s.ScratchFontFamily)) s.ScratchFontFamily = "Cascadia Code, Consolas";
+        if (double.IsNaN(s.ScratchFontSize) || double.IsInfinity(s.ScratchFontSize)) s.ScratchFontSize = 14;
+        s.ScratchFontSize = Math.Max(8, Math.Min(48, s.ScratchFontSize));
         if (!new[] { 2, 4, 6, 8 }.Contains(s.IndentSize)) s.IndentSize = 2;
         s.OcrLanguages ??= ["eng"];
         var validHistory = State.History.Where(h => h != null && !string.IsNullOrWhiteSpace(h.Text)).ToList();

@@ -14,7 +14,7 @@
   <ItemGroup><PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" PrivateAssets="all" />
     <Reference Include="System.Net.Http" />
     <PackageReference Include="System.Text.Json" Version="10.0.12" />
-    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+    <ProjectReference Include="../vendor/AvalonEdit/ICSharpCode.AvalonEdit/ICSharpCode.AvalonEdit.csproj" />
     <PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
     <PackageReference Include="Tesseract" Version="5.2.0" />
     <Content Include="Assets/icon.ico" CopyToOutputDirectory="PreserveNewest" />

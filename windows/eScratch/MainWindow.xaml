@@ -1,10 +1,16 @@
-<Window x:Class="eScratch.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:editor="http://icsharpcode.net/sharpdevelop/avalonedit" xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+<Window x:Class="eScratch.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:eScratch" xmlns:editor="http://icsharpcode.net/sharpdevelop/avalonedit" xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
  ShowInTaskbar="False" Title="eScratch" Style="{StaticResource {x:Type Window}}" Width="700" Height="500" MinWidth="520" MinHeight="360" WindowStyle="None" WindowStartupLocation="CenterScreen" PreviewKeyDown="WindowKeyDown" UseLayoutRounding="True">
  <shell:WindowChrome.WindowChrome><shell:WindowChrome CaptionHeight="44" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/></shell:WindowChrome.WindowChrome>
- <Grid>
+ <Grid Background="{DynamicResource Surface}">
   <Grid.RowDefinitions><RowDefinition Height="44"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1">
    <Grid Margin="12,0">
+    <Button x:Name="FormatViewButton" HorizontalAlignment="Left" VerticalAlignment="Center" Width="36" Height="28" Padding="0" Background="Transparent" Click="FormatViewClick" ToolTip="Toggle formatted text / Markdown source" AutomationProperties.Name="Toggle formatted text" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+     <Grid>
+      <TextBlock x:Name="FormattedModeLabel" FontFamily="Cambria, Georgia" FontSize="15" Visibility="Collapsed"><Run Text="A" FontWeight="Bold"/><Run Text="b"/><Run Text="c" FontWeight="Bold" FontStyle="Italic"/></TextBlock>
+      <TextBlock x:Name="MarkdownModeLabel" Text="*/~" FontFamily="Consolas" FontSize="13"/>
+     </Grid>
+    </Button>
     <TextBlock Text="eScratch" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Secondary}" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"/>
     <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" VerticalAlignment="Center" shell:WindowChrome.IsHitTestVisibleInChrome="True">
      <Button x:Name="NewButton" Style="{StaticResource IconButton}" Click="NewClick" ToolTip="New draft" AutomationProperties.Name="New draft"><Path Style="{StaticResource Icon}" Data="M14,2 H6 Q4,2 4,4 V20 Q4,22 6,22 H18 Q20,22 20,20 V8 Z M14,2 V8 H20 M12,12 V18 M9,15 H15"/></Button>
@@ -17,7 +23,9 @@
    </Grid>
   </Border>
   <Grid Grid.Row="1">
-   <editor:TextEditor x:Name="Editor" FontFamily="Cascadia Code, Consolas" FontSize="14" Padding="20" Background="{DynamicResource Surface}" Foreground="{DynamicResource Ink}" WordWrap="True" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" TextChanged="EditorChanged" AutomationProperties.Name="Draft editor"/>
+   <local:PaperSurface x:Name="PaperBackground" IsHitTestVisible="False"/>
+   <editor:TextEditor x:Name="Editor" FontFamily="Cascadia Code, Consolas" FontSize="14" Padding="20" Background="Transparent" Foreground="{DynamicResource Ink}" WordWrap="True" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" TextChanged="EditorChanged" AutomationProperties.Name="Draft editor"/>
+   <Canvas x:Name="CalculationOverlay" ClipToBounds="True"/>
    <StackPanel x:Name="Placeholder" Margin="20,22,20,0" VerticalAlignment="Top" IsHitTestVisible="False">
     <TextBlock Text="Type Here or Simply Paste..." FontFamily="Consolas" FontSize="14" Foreground="{DynamicResource Muted}"/>
     <TextBlock x:Name="ShortcutHint" Margin="0,8,0,0" FontFamily="Consolas" FontSize="11" Foreground="{DynamicResource Muted}" TextWrapping="Wrap"/>
@@ -28,13 +36,63 @@
     <TextBlock x:Name="Status" Text="" FontSize="12" Foreground="{DynamicResource Secondary}" TextWrapping="Wrap"/>
    </Border>
    <Border x:Name="PanelBackdrop" Visibility="Collapsed" Background="Transparent" MouseDown="BackdropClick"/>
-   <Border x:Name="HistoryPanel" Width="320" HorizontalAlignment="Right" Visibility="Collapsed" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1,0,0,0">
-    <DockPanel>
-     <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1" Padding="20,12"><DockPanel><Button x:Name="ClearHistoryButton" DockPanel.Dock="Right" Content="Clear all" Click="ClearClick" FontSize="11" Background="Transparent" Foreground="{DynamicResource Muted}" Padding="8,4"/><TextBlock Text="History" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel></Border>
-     <Grid><TextBlock x:Name="EmptyHistory" Text="No history" Foreground="{DynamicResource Muted}" FontSize="13" HorizontalAlignment="Center" Margin="20,40"/>
-      <ListBox x:Name="HistoryList" Background="Transparent" Foreground="{DynamicResource Ink}" BorderThickness="0" Padding="8" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled" PreviewKeyDown="HistoryKeyDown">
-       <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="Padding" Value="0"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Border x:Name="Row" Background="Transparent" CornerRadius="8" Margin="0,1"><ContentPresenter/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Row" Property="Background" Value="{DynamicResource Hover}"/></Trigger><Trigger Property="IsSelected" Value="True"><Setter TargetName="Row" Property="Background" Value="{DynamicResource Active}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style></ListBox.ItemContainerStyle>
-       <ListBox.ItemTemplate><DataTemplate><Grid Margin="12"><Grid.RowDefinitions><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Button Click="RestoreEntryClick" Tag="{Binding}" Background="Transparent" BorderThickness="0" Padding="0" HorizontalContentAlignment="Left" ToolTip="Restore this entry"><TextBlock Text="{Binding Preview}" TextWrapping="Wrap" MaxHeight="58" LineHeight="19" Width="248" TextTrimming="CharacterEllipsis"/></Button><DockPanel Grid.Row="1" Margin="0,6,0,0"><Button DockPanel.Dock="Right" Content="×" Tag="{Binding}" Click="DeleteClick" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource Muted}" Width="20" Height="20" Padding="0" FontSize="12" ToolTip="Delete entry" AutomationProperties.Name="Delete history entry"/><Button DockPanel.Dock="Right" Tag="{Binding}" Click="PinHistoryClick" Background="Transparent" BorderThickness="0" Width="20" Height="20" Padding="0" ToolTip="{Binding PinToolTip}" AutomationProperties.Name="{Binding PinToolTip}"><Path Width="9" Height="11" Stretch="Uniform" StrokeThickness="1.5" StrokeLineJoin="Round" Data="M8,3 L16,3 L15,9 L18,13 L18,15 L6,15 L6,13 L9,9 Z M12,15 L12,22"><Path.Style><Style TargetType="Path"><Setter Property="Stroke" Value="{DynamicResource Secondary}"/><Setter Property="Fill" Value="Transparent"/><Style.Triggers><DataTrigger Binding="{Binding Pinned}" Value="True"><Setter Property="Stroke" Value="{DynamicResource Accent}"/><Setter Property="Fill" Value="{DynamicResource Accent}"/></DataTrigger></Style.Triggers></Style></Path.Style></Path></Button><TextBlock Text="{Binding Date}" FontSize="11" Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/></DockPanel></Grid></DataTemplate></ListBox.ItemTemplate>
+   <Border x:Name="HistoryPanel" Visibility="Collapsed" Background="{DynamicResource Surface}">
+    <DockPanel Margin="16,12,16,0">
+     <StackPanel DockPanel.Dock="Top">
+      <DockPanel Margin="4,0,4,12">
+       <Button DockPanel.Dock="Right" Content="Back to scratch" Click="BackClick" Background="Transparent" FontSize="12" Margin="8,0,0,0"/>
+       <Button x:Name="ClearHistoryButton" DockPanel.Dock="Right" Content="Clear unpinned" Click="ClearClick" Background="Transparent" FontSize="12"/>
+       <StackPanel><TextBlock Text="History" FontSize="20" FontWeight="SemiBold"/><TextBlock x:Name="HistorySummary" Foreground="{DynamicResource Secondary}" FontSize="11" Margin="0,3,0,0"/></StackPanel>
+      </DockPanel>
+      <DockPanel Margin="4,0,4,12">
+       <Button DockPanel.Dock="Right" Content="Clear search" Click="ClearHistorySearch" Background="Transparent" FontSize="11" Margin="8,0,0,0"/>
+       <Grid>
+        <TextBox x:Name="HistorySearch" Padding="0" TextChanged="SearchHistory" ToolTip="Search the full text of saved notes" AutomationProperties.Name="Search history">
+         <TextBox.Template><ControlTemplate TargetType="TextBox"><Border x:Name="SearchFrame" CornerRadius="6" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" Padding="9,7"><ScrollViewer x:Name="PART_ContentHost"/></Border><ControlTemplate.Triggers><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="SearchFrame" Property="BorderBrush" Value="{DynamicResource Accent}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></TextBox.Template>
+        </TextBox>
+        <TextBlock x:Name="HistorySearchHint" Text="Search saved notes…" Margin="12,0" VerticalAlignment="Center" Foreground="{DynamicResource Secondary}" IsHitTestVisible="False"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=HistorySearch}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+       </Grid>
+      </DockPanel>
+     </StackPanel>
+     <Grid>
+      <TextBlock x:Name="EmptyHistory" Foreground="{DynamicResource Secondary}" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" Margin="20"/>
+      <ListBox x:Name="HistoryList" Tag="220" Background="Transparent" Foreground="{DynamicResource Ink}" BorderThickness="0" Padding="0" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.CanContentScroll="False" PreviewKeyDown="HistoryKeyDown" SizeChanged="HistoryBoardSizeChanged" AutomationProperties.Name="Saved notes board">
+       <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ListBox.ItemsPanel>
+       <ListBox.ItemContainerStyle>
+        <Style TargetType="ListBoxItem">
+         <Setter Property="Width" Value="{Binding Tag, RelativeSource={RelativeSource AncestorType=ListBox}}"/>
+         <Setter Property="Padding" Value="0"/>
+         <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
+          <Border x:Name="Card" Margin="5,5,5,10" Height="200" Padding="14" Background="{DynamicResource Note}" BorderBrush="{DynamicResource NoteEdge}" BorderThickness="1" CornerRadius="3">
+           <Border.Effect><DropShadowEffect BlurRadius="6" ShadowDepth="2" Opacity="0.10"/></Border.Effect>
+           <ContentPresenter/>
+          </Border>
+          <ControlTemplate.Triggers>
+           <DataTrigger Binding="{Binding Pinned}" Value="True"><Setter TargetName="Card" Property="Background" Value="{DynamicResource PinnedNote}"/></DataTrigger>
+           <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource Accent}"/></Trigger>
+           <Trigger Property="IsSelected" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource Accent}"/><Setter TargetName="Card" Property="BorderThickness" Value="2"/></Trigger>
+          </ControlTemplate.Triggers>
+         </ControlTemplate></Setter.Value></Setter>
+        </Style>
+       </ListBox.ItemContainerStyle>
+       <ListBox.ItemTemplate><DataTemplate>
+        <Grid>
+         <Grid.RowDefinitions><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+         <Button Click="RestoreEntryClick" Tag="{Binding}" Padding="0" BorderThickness="0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top" ToolTip="Open this note" AutomationProperties.Name="Open saved note">
+          <Button.Template><ControlTemplate TargetType="Button"><Border Background="Transparent"><ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Top"/></Border></ControlTemplate></Button.Template>
+          <TextBlock Text="{Binding Text}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="132" FontSize="13" LineHeight="19"/>
+         </Button>
+         <DockPanel Grid.Row="1" Margin="0,10,0,0">
+          <Button DockPanel.Dock="Right" Content="×" Tag="{Binding}" Click="DeleteClick" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource Secondary}" Width="20" Height="20" Padding="0" FontSize="12" ToolTip="Delete entry" AutomationProperties.Name="Delete history entry"/>
+          <Button DockPanel.Dock="Right" Tag="{Binding}" Click="PinHistoryClick" Background="Transparent" BorderThickness="0" Width="20" Height="20" Padding="0" ToolTip="{Binding PinToolTip}" AutomationProperties.Name="{Binding PinToolTip}">
+           <Path Width="9" Height="11" Stretch="Uniform" StrokeThickness="1.5" StrokeLineJoin="Round" Data="M8,3 L16,3 L15,9 L18,13 L18,15 L6,15 L6,13 L9,9 Z M12,15 L12,22">
+            <Path.Style><Style TargetType="Path"><Setter Property="Stroke" Value="{DynamicResource Secondary}"/><Setter Property="Fill" Value="Transparent"/><Style.Triggers><DataTrigger Binding="{Binding Pinned}" Value="True"><Setter Property="Stroke" Value="{DynamicResource Accent}"/><Setter Property="Fill" Value="{DynamicResource Accent}"/></DataTrigger></Style.Triggers></Style></Path.Style>
+           </Path>
+          </Button>
+          <TextBlock Text="{Binding Date}" FontSize="10" Foreground="{DynamicResource Secondary}" VerticalAlignment="Center"/>
+         </DockPanel>
+        </Grid>
+       </DataTemplate></ListBox.ItemTemplate>
       </ListBox>
      </Grid>
     </DockPanel>

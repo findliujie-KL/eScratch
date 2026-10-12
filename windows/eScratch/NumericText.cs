@@ -6,6 +6,23 @@ namespace eScratch;
 
 public static class NumericText
 {
+    public static System.Collections.Generic.List<string> CopyFormats(string displayed)
+    {
+        var formats = new System.Collections.Generic.List<string> { displayed };
+        if (!TrySelection(displayed, out var value, out var token)) return formats;
+        if (token.Percent) value /= 100;
+        void Add(string text) { if (!formats.Contains(text)) formats.Add(text); }
+        const string digits = "0.############################";
+        Add(value.ToString("#,##0.############################", CultureInfo.InvariantCulture));
+        Add(value.ToString(digits, CultureInfo.InvariantCulture));
+        foreach (var unit in new[] { (1000m, "K"), (1000000m, "M"), (1000000000m, "B"), (1000000000000m, "T") })
+        {
+            var scaled = value / unit.Item1;
+            if (Math.Abs(scaled) >= 0.01m) Add(scaled.ToString(digits, CultureInfo.InvariantCulture) + unit.Item2);
+        }
+        if (Math.Abs(value) < 100) Add((value * 100).ToString(digits, CultureInfo.InvariantCulture) + "%");
+        return formats;
+    }
     public readonly record struct Token(int End, double Value, double UnitScale, string Number, bool Percent);
 
     private static readonly Regex NumberPattern = new(

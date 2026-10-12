@@ -5,6 +5,17 @@ namespace eScratch;
 
 public static class Calculator
 {
+    public static bool TryLiveResult(string line, out string result)
+    {
+        result = "";
+        if (line.Length > 512 || line.IndexOf('=') >= 0) return false;
+        var expression = line.Trim();
+        // A standalone number is a note, not a calculation. Require an operator after it.
+        if (expression.Length == 0 || expression.Substring(1).IndexOfAny(new[] { '+', '-', '−', '*', '×', '/', '÷', '%' }) < 0) return false;
+        if (!TryCompleteLine(expression, out var completed)) return false;
+        result = completed.Substring(completed.LastIndexOf(" = ", StringComparison.Ordinal) + 3);
+        return true;
+    }
     public static bool TryCompleteLine(string line, out string completed)
     {
         completed = line;

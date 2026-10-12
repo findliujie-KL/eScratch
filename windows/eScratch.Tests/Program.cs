@@ -23,6 +23,16 @@ internal static class Program
         try
         {
             CompatibilityChecks.Run(folder, Check);
+            InlineMarkdownChecks.Run(Check);
+            var copyFormats = NumericText.CopyFormats("3.84M");
+            Check(copyFormats.Contains("3,840,000") && copyFormats.Contains("3840K") && !copyFormats.Contains("384K"), "Copy formats preserve millions value in full and thousands");
+            Check(NumericText.CopyFormats("3840000").Contains("3.84M"), "Plain results can be copied as millions");
+            Check(NumericText.CopyFormats("-3.84M").Contains("-3,840,000") && !copyFormats.Contains("0.00384B"), "Copy formats preserve signs and skip units below 0.01");
+            Check(NumericText.CopyFormats("48.25%").Contains("0.4825"), "Percentage copy formats preserve value");
+            Check(Calculator.TryLiveResult("23+56", out var live) && live == "79", "Live result contains only the computed value");
+            Check(Calculator.TryLiveResult("1.5M * 60%", out live) && live == "0.9M", "Live results support units and percentages");
+            Check(!Calculator.TryLiveResult("hello", out _) && !Calculator.TryLiveResult("42", out _) && !Calculator.TryLiveResult("1/0", out _) && !Calculator.TryLiveResult("2+", out _), "Live results omit prose, standalone numbers and invalid expressions");
+            Check(!Calculator.TryLiveResult("2+3 = 5", out _), "Explicit results do not receive duplicate live results");
             Check(Calculator.TryCompleteLine("35+456", out var sum) && sum == "35+456 = 491", "Calculator appends the requested result");
             Check(Calculator.TryCompleteLine("2*3+1/8", out var product) && product == "2*3+1/8 = 6.13", "Asterisk multiplies and results use at most two decimals");
             Check(Calculator.TryCompleteLine(" (2 + 3) × -4 ", out var grouped) && grouped == " (2 + 3) × -4 = -20", "Calculator handles precedence, parentheses and signs");
@@ -115,11 +125,6 @@ internal static class Program
             store = new StateStore(folder);
             Check(store.State.Settings.HistoryLimit == 10 && store.State.Draft == "", "Null persisted fields safely normalized");
             Check(Hotkey.Parse("Control+Shift+C").Modifiers == (ModifierKeys.Control | ModifierKeys.Shift), "Electron shortcut format imports correctly");
-            Check(MouseToggleHook.TryParse("MiddleClick", out var plainMouse) && plainMouse == ModifierKeys.None, "Plain middle-click gesture is valid");
-            Check(MouseToggleHook.TryParse("Control+MiddleClick", out var modifiedMouse) && modifiedMouse == ModifierKeys.Control, "Modifier and middle-click gesture is valid");
-            Check(!MouseToggleHook.TryParse("Control+Control+MiddleClick", out _), "Duplicate mouse modifiers are rejected");
-            using (var mouse = new MouseToggleHook(System.Windows.Threading.Dispatcher.CurrentDispatcher, () => { }))
-            { mouse.Register("Control+MiddleClick"); Check(true, "Global mouse hook registers with Windows"); }
             using (var source = new HwndSource(new HwndSourceParameters("eScratch hotkey test") { Width = 1, Height = 1 }))
             using (var first = new Hotkey(source.Handle, () => { }))
             using (var otherSource = new HwndSource(new HwndSourceParameters("eScratch conflicting hotkey test") { Width = 1, Height = 1 }))

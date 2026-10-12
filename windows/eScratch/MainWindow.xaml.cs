@@ -17,12 +17,12 @@ public partial class MainWindow : Window
 {
     private readonly StateStore store;
     private readonly OcrService ocr;
+    private readonly MarkdownEditor markdownEditor;
     private readonly Func<IDataObject?> readClipboard;
     private readonly Forms.NotifyIcon tray;
     private readonly DispatcherTimer saveTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private readonly TransientNotice statusNotice;
     private Hotkey? hotkey;
-    private MouseToggleHook? mouseToggle;
     private bool quitting, reading;
     private int zoomPercent = 100;
     private long revision;
@@ -35,7 +35,14 @@ public partial class MainWindow : Window
         store = stateStore ?? new StateStore();
         ocr = new OcrService(store.DirectoryPath);
         InitializeComponent();
+        PaperBackground.Attach(Editor, store.State.Settings);
+        markdownEditor = new MarkdownEditor(Editor);
         statusNotice = new TransientNotice(Status);
+        _ = new LiveCalculations(Editor, CalculationOverlay, markdownEditor, result =>
+        {
+            try { Clipboard.SetText(result); statusNotice.Show("Result copied"); }
+            catch (Exception) { statusNotice.Show("Clipboard is busy. Please try again."); }
+        });
         Icon = BitmapFrame.Create(new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "icon.ico")));
         Editor.Text = store.State.Draft;
         Editor.PreviewMouseWheel += ZoomWheel;
@@ -54,6 +61,14 @@ public partial class MainWindow : Window
         separators.Click += (_, _) => { if (NumericText.TryAddSeparators(Editor.SelectedText, out var result)) ReplaceNumericSelection(result); };
         words.Click += (_, _) => { if (NumericText.TryToWords(Editor.SelectedText, out var result)) ReplaceNumericSelection(result); };
         menu.Items.Add(paste); menu.Items.Add(markdown); menu.Items.Add(numberDivider); menu.Items.Add(separators); menu.Items.Add(words);
+        menu.Items.Add(new Separator());
+        foreach (var format in new[] { ("Bold", InlineStyle.Bold, "Ctrl+B"), ("Italic", InlineStyle.Italic, "Ctrl+I"), ("Strikethrough", InlineStyle.Strike, "Ctrl+Shift+X") })
+        {
+            var item = new MenuItem { Header = format.Item1, InputGestureText = format.Item3 };
+            item.Click += (_, _) => FormatSelection(format.Item2);
+            menu.Opened += (_, _) => item.IsEnabled = !Editor.IsReadOnly && Editor.SelectionLength > 0;
+            menu.Items.Add(item);
+        }
         menu.Opened += (_, _) => {
             markdown.InputGestureText = store.State.Settings.MarkdownShortcut.Replace("Control", "Ctrl");
             try { var data = readClipboard(); markdown.IsEnabled = !Editor.IsReadOnly && data != null && (data.GetDataPresent(DataFormats.UnicodeText) || data.GetDataPresent(DataFormats.Html)); }
@@ -76,13 +91,10 @@ public partial class MainWindow : Window
         {
             hotkey = new Hotkey(new WindowInteropHelper(this).Handle, Toggle);
             if (!hotkey.Register(store.State.Settings.Shortcut)) statusNotice.Show("Shortcut is in use by another app. Choose another shortcut in Settings.");
-            mouseToggle = new MouseToggleHook(Dispatcher, Toggle);
-            try { mouseToggle.Register(store.State.Settings.MouseShortcut); }
-            catch (Exception ex) { statusNotice.Show(ex.Message); }
         };
         StateChanged += (_, _) => { if (WindowState == WindowState.Minimized) HideToTray(); };
         Closing += OnClosing;
-        Loaded += (_, _) => Editor.Focus();
+        Loaded += (_, _) => { Editor.Focus(); SettingsWindow.PreloadFonts(); };
         Application.Current.SessionEnding += (_, _) => { quitting = true; SaveState(); };
     }
     private void SaveState()
@@ -101,6 +113,21 @@ public partial class MainWindow : Window
     private void ApplySettings()
     {
         var s = store.State.Settings;
+        markdownEditor.SetEnabled(s.FormattedView);
+        FormattedModeLabel.Visibility = s.FormattedView ? Visibility.Visible : Visibility.Collapsed;
+        MarkdownModeLabel.Visibility = s.FormattedView ? Visibility.Collapsed : Visibility.Visible;
+        FormatViewButton.ToolTip = s.FormattedView ? "Formatted view · Click for Markdown source" : "Markdown source · Click for formatted view";
+        System.Windows.Automation.AutomationProperties.SetName(FormatViewButton, FormatViewButton.ToolTip.ToString());
+        FormatViewButton.SetResourceReference(Button.BackgroundProperty, s.FormattedView ? "Active" : "Panel");
+        Editor.FontFamily = new FontFamily(s.ScratchFontFamily);
+        var alignment = (TextAlignment)Enum.Parse(typeof(TextAlignment), s.ScratchAlignment);
+        if (!Equals(Editor.TextArea.TextView.GetValue(TextBlock.TextAlignmentProperty), alignment))
+        {
+            Editor.TextArea.TextView.SetValue(TextBlock.TextAlignmentProperty, alignment);
+            Editor.TextArea.TextView.Redraw();
+        }
+        ((TextBlock)Placeholder.Children[0]).FontFamily = Editor.FontFamily;
+        SetZoom(zoomPercent);
         Topmost = s.AlwaysOnTop;
         PinButton.SetResourceReference(Button.BackgroundProperty, Topmost ? "Active" : "Panel");
         PinButton.SetResourceReference(Button.ForegroundProperty, Topmost ? "Accent" : "Secondary");
@@ -114,12 +141,16 @@ public partial class MainWindow : Window
         Editor.Options.ShowEndOfLine = s.ShowWhitespace;
         var colors = new Dictionary<string, (string Light, string Dark)> {
             ["Surface"] = ("#eff1f5", "#1e1e2e"), ["Panel"] = ("#e6e9ef", "#181825"),
+            ["Note"] = ("#fff3cc", "#383328"), ["PinnedNote"] = ("#e8e3f6", "#302d43"),
+            ["NoteEdge"] = ("#e6d6a8", "#5b503a"),
             ["Hover"] = ("#ccd0da", "#313244"), ["Active"] = ("#bcc0cc", "#45475a"),
             ["Line"] = ("#ccd0da", "#313244"), ["Ink"] = ("#4c4f69", "#cdd6f4"),
             ["Secondary"] = ("#5c5f77", "#a6adc8"), ["Muted"] = ("#9ca0b0", "#585b70"),
             ["Accent"] = ("#6478b4", "#89b4fa"), ["Danger"] = ("#d20f39", "#f38ba8"), ["Success"] = ("#40a02b", "#a6e3a1")
         };
         foreach (var color in colors) Application.Current.Resources[color.Key] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(s.LightTheme ? color.Value.Light : color.Value.Dark));
+        foreach (var color in PaperThemes.Palette(s.PaperTheme, s.LightTheme)) Application.Current.Resources[color.Key] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color.Value));
+        PaperBackground.Update(s);
         NewButton.ToolTip = "New (" + s.NewShortcut.Replace("Control", "Ctrl") + ")";
         ShortcutHint.Text = s.Shortcut.Replace("Control", "Ctrl") + " to toggle window · " + s.NewShortcut.Replace("Control", "Ctrl") + " for new scratch · Ctrl+H for history";
         ThemeButton.ToolTip = s.LightTheme ? "Switch to dark theme" : "Switch to light theme";
@@ -136,6 +167,16 @@ public partial class MainWindow : Window
         ApplySettings(); SaveState();
         if (settingsWindow != null) ((CheckBox)settingsWindow.FindName("TopmostBox")).IsChecked = Topmost;
     }
+    private void FormatViewClick(object sender, RoutedEventArgs e)
+    {
+        store.State.Settings.FormattedView = !store.State.Settings.FormattedView;
+        ApplySettings(); SaveState(); Editor.Focus();
+    }
+    private void FormatSelection(InlineStyle style)
+    {
+        if (!markdownEditor.Toggle(style)) statusNotice.Show("Select text to format.");
+        Editor.Focus();
+    }
     private bool TryCopyOnHide()
     {
         if (string.IsNullOrWhiteSpace(Editor.Text)) return true;
@@ -147,10 +188,28 @@ public partial class MainWindow : Window
     private void RestoreWindow()
     {
         if (!IsVisible || WindowState == WindowState.Minimized) StartResumedEntry();
-        Show(); WindowState = WindowState.Normal; Activate(); Editor.Focus();
+        Show(); WindowState = WindowState.Normal;
+        if (store.State.Settings.OpenNearPointer) MoveNearPointer();
+        Activate(); Editor.Focus();
+    }
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
+    private void MoveNearPointer()
+    {
+        var pointer = Forms.Cursor.Position;
+        var area = Forms.Screen.FromPoint(pointer).WorkingArea;
+        var source = PresentationSource.FromVisual(this);
+        var scale = source?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
+        var width = (int)Math.Ceiling(ActualWidth * scale.M11);
+        var height = (int)Math.Ceiling(ActualHeight * scale.M22);
+        var x = Math.Max(area.Left, Math.Min(pointer.X + 16, area.Right - width));
+        var y = Math.Max(area.Top, Math.Min(pointer.Y + 16, area.Bottom - height));
+        // Screen and cursor coordinates are pixels; avoid mixing them with WPF logical units.
+        SetWindowPos(new WindowInteropHelper(this).Handle, IntPtr.Zero, x, y, 0, 0, 0x0015);
     }
     private void StartResumedEntry()
     {
+        if (store.State.Settings.ReopenLastScratch) return;
         try
         {
             // Archive successfully before clearing, so failures never discard a draft.
@@ -163,7 +222,7 @@ public partial class MainWindow : Window
     private void OnClosing(object? sender, CancelEventArgs e) { if (!quitting) { e.Cancel = true; HideToTray(); } }
     private void Quit()
     {
-        SaveState(); quitting = true; saveTimer.Stop(); statusNotice.Dispose(); hotkey?.Dispose(); mouseToggle?.Dispose();
+        SaveState(); quitting = true; saveTimer.Stop(); statusNotice.Dispose(); hotkey?.Dispose();
         tray.Visible = false; tray.Icon?.Dispose(); tray.Dispose();
         settingsWindow?.Close(); Application.Current.Shutdown();
     }
@@ -190,8 +249,23 @@ public partial class MainWindow : Window
     }
     private void RefreshHistory()
     {
-        HistoryList.ItemsSource = store.State.History.ToList();
-        EmptyHistory.Visibility = store.State.History.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (HistoryList == null || HistorySearch == null) return;
+        var query = HistorySearch.Text.Trim();
+        var entries = store.State.History.Where(entry => query.Length == 0 ||
+            entry.Text.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+        HistoryList.ItemsSource = entries;
+        EmptyHistory.Text = store.State.History.Count == 0 ? "Your saved scratches will appear here." : "No matching notes. Try another search.";
+        EmptyHistory.Visibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        HistorySummary.Text = query.Length == 0 ? $"{entries.Count} saved notes · pinned first" : $"{entries.Count} of {store.State.History.Count} notes";
+        ClearHistoryButton.IsEnabled = store.State.History.Any(entry => !entry.Pinned);
+    }
+    private void SearchHistory(object sender, TextChangedEventArgs e) => RefreshHistory();
+    private void ClearHistorySearch(object sender, RoutedEventArgs e) { HistorySearch.Clear(); HistorySearch.Focus(); }
+    private void HistoryBoardSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var width = Math.Max(200, HistoryList.ActualWidth - 40);
+        var columns = Math.Max(1, (int)(width / 220));
+        HistoryList.Tag = Math.Floor(width / columns);
     }
     private void HistoryClick(object sender, RoutedEventArgs e)
     {
@@ -200,6 +274,7 @@ public partial class MainWindow : Window
         if (wasOpen) return;
         RefreshHistory(); HistoryPanel.Visibility = PanelBackdrop.Visibility = Visibility.Visible;
         HistoryButton.SetResourceReference(Button.BackgroundProperty, "Active");
+        HistorySearch.Focus();
     }
     private void RestoreEntryClick(object sender, RoutedEventArgs e)
     {
@@ -230,10 +305,10 @@ public partial class MainWindow : Window
     }
     private void ClearClick(object sender, RoutedEventArgs e)
     {
-        if (store.State.History.Count == 0) return;
-        ShowConfirmation("Clear history?", "Delete all saved history, including pinned entries? Your current draft will be kept.", "Clear history", () =>
+        if (!store.State.History.Any(entry => !entry.Pinned)) return;
+        ShowConfirmation("Clear unpinned history?", "Delete all unpinned notes? Pinned notes and your current draft will be kept.", "Clear unpinned", () =>
         {
-            store.State.History.Clear(); SaveState(); RefreshHistory();
+            store.State.History.RemoveAll(entry => !entry.Pinned); SaveState(); RefreshHistory();
         }, ClearHistoryButton);
     }
     internal void ShowConfirmation(string title, string message, string actionLabel, Action confirm, UIElement returnFocus)
@@ -271,10 +346,16 @@ public partial class MainWindow : Window
         BackClick(sender, e);
         if (wasOpen) return;
         settingsWindow = new SettingsWindow(store, ocr, shortcut => hotkey?.Register(shortcut) == true,
-            gesture => mouseToggle?.Register(gesture), active => { if (mouseToggle != null) mouseToggle.Suspended = active; },
             () => { ApplySettings(); SaveState(); RefreshHistory(); });
         settingsWindow.Closed += (_, _) => { SettingsContent.Content = null; settingsWindow = null; SettingsPanel.Visibility = PanelBackdrop.Visibility = Visibility.Collapsed; SettingsButton.ClearValue(Button.BackgroundProperty); };
         SettingsContent.Content = settingsWindow;
+        settingsWindow.FullPageChanged += full =>
+        {
+            SettingsPanel.Width = full ? double.NaN : 320;
+            SettingsPanel.HorizontalAlignment = full ? HorizontalAlignment.Stretch : HorizontalAlignment.Right;
+        };
+        SettingsPanel.Width = 320;
+        SettingsPanel.HorizontalAlignment = HorizontalAlignment.Right;
         SettingsPanel.Visibility = PanelBackdrop.Visibility = Visibility.Visible;
         SettingsButton.SetResourceReference(Button.BackgroundProperty, "Active");
     }
@@ -285,10 +366,29 @@ public partial class MainWindow : Window
             if (e.Key == Key.Escape) { DismissConfirmation(); e.Handled = true; }
             return;
         }
+        if (e.Key == Key.F1 && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            if (settingsWindow == null) SettingsClick(sender, e);
+            settingsWindow?.ShowPage("help"); e.Handled = true; return;
+        }
         if (e.Key == Key.Escape) { if (PanelBackdrop.IsVisible) BackClick(sender, e); else HideToTray(); e.Handled = true; return; }
         if ((e.Key == Key.D0 || e.Key == Key.NumPad0) && Keyboard.Modifiers == ModifierKeys.Control)
         { SetZoom(100); e.Handled = true; return; }
         if (settingsWindow != null) return;
+        if (Editor.IsKeyboardFocusWithin)
+        {
+            var modifiers = Keyboard.Modifiers;
+            if (modifiers == ModifierKeys.Control && (e.Key == Key.B || e.Key == Key.I))
+            { FormatSelection(e.Key == Key.B ? InlineStyle.Bold : InlineStyle.Italic); e.Handled = true; return; }
+            if (modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.X)
+            { FormatSelection(InlineStyle.Strike); e.Handled = true; return; }
+            if (markdownEditor.Enabled && modifiers == ModifierKeys.Control && e.Key == Key.X && Editor.SelectionLength > 0 && !Editor.IsReadOnly)
+            {
+                try { Clipboard.SetText(markdownEditor.SelectedVisibleText()); markdownEditor.ReplaceSelection(""); }
+                catch (Exception ex) { statusNotice.Show("Could not cut: " + ex.Message); }
+                e.Handled = true; return;
+            }
+        }
         if ((e.Key == Key.Return || e.Key == Key.Enter) &&
             (Keyboard.Modifiers == ModifierKeys.Control || Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift)) && Editor.IsKeyboardFocusWithin)
         {
@@ -315,8 +415,8 @@ public partial class MainWindow : Window
     {
         zoomPercent = Math.Max(75, Math.Min(250, percent));
         var scale = zoomPercent / 100.0;
-        Editor.FontSize = 14 * scale;
-        if (Placeholder.Children[0] is TextBlock prompt) prompt.FontSize = 14 * scale;
+        Editor.FontSize = store.State.Settings.ScratchFontSize * scale;
+        if (Placeholder.Children[0] is TextBlock prompt) prompt.FontSize = Editor.FontSize;
         ShortcutHint.FontSize = 11 * scale;
     }
     private void CompleteCalculation() => CalculateCurrentLine(false);
@@ -324,18 +424,23 @@ public partial class MainWindow : Window
     {
         if (Editor.IsReadOnly || Editor.SelectionLength != 0) return;
         var line = Editor.Document.GetLineByOffset(Editor.CaretOffset);
-        if (Editor.CaretOffset != line.EndOffset) { statusNotice.Show("Move the cursor to the end of the expression.", 1); return; }
-        var current = Editor.Document.GetText(line.Offset, line.Length);
+        var model = markdownEditor.Model;
+        if (markdownEditor.Enabled ? model.VisibleOffset(Editor.CaretOffset) != model.VisibleOffset(line.EndOffset) : Editor.CaretOffset != line.EndOffset) { statusNotice.Show("Move the cursor to the end of the expression.", 1); return; }
+        var visibleStart = model.VisibleOffset(line.Offset);
+        var visibleLength = model.VisibleOffset(line.EndOffset) - visibleStart;
+        var current = markdownEditor.Enabled ? model.Visible.Substring(visibleStart, visibleLength) : Editor.Document.GetText(line.Offset, line.Length);
         var success = cycleUnit ? Calculator.TryCycleDisplayUnit(current, out var completedUnit) : Calculator.TryCompleteLine(current, out completedUnit);
         var completed = completedUnit;
         if (!success) { statusNotice.Show("Enter an arithmetic expression to calculate.", 1); return; }
         if (completed == current) return;
+        if (markdownEditor.Enabled) { markdownEditor.ReplaceVisible(visibleStart, visibleLength, completed); return; }
         Editor.Document.Replace(line.Offset, line.Length, completed);
         Editor.CaretOffset = line.Offset + completed.Length;
     }
     private void ReplaceNumericSelection(string replacement)
     {
         if (Editor.IsReadOnly || Editor.SelectionLength == 0) return;
+        if (markdownEditor.Enabled) { markdownEditor.ReplaceSelection(replacement); Editor.Focus(); return; }
         var start = Editor.SelectionStart;
         Editor.Document.Replace(start, Editor.SelectionLength, replacement);
         Editor.CaretOffset = start + replacement.Length;
@@ -352,9 +457,7 @@ public partial class MainWindow : Window
             var html = data.GetData(DataFormats.Html) as string ?? "";
             if (plain.Length == 0 && html.Length == 0) return;
             var text = MarkdownPaste.Convert(plain, html, data.GetDataPresent(DataFormats.Rtf, false));
-            var start = Editor.SelectionStart;
-            Editor.Document.Replace(start, Editor.SelectionLength, text);
-            Editor.CaretOffset = start + text.Length; Editor.Focus();
+            PastePlainText(text);
             statusNotice.Show("Pasted as Markdown");
         }
         catch (Exception ex) { statusNotice.Show("Could not paste as Markdown: " + ex.Message); }
@@ -380,6 +483,8 @@ public partial class MainWindow : Window
         try
         {
             var data = readClipboard();
+            if (markdownEditor.Enabled && ClipboardImage.TryReadPlainText(data, out var plain))
+            { e.Handled = true; if (!Editor.IsReadOnly) PastePlainText(plain); return; }
             if (!ClipboardImage.IsAvailable(data)) return;
             e.Handled = true;
             if (Editor.IsReadOnly) return;
@@ -390,6 +495,8 @@ public partial class MainWindow : Window
     }
     private async void OnPaste(object sender, DataObjectPastingEventArgs e)
     {
+        if (markdownEditor.Enabled && ClipboardImage.TryReadPlainText(e.DataObject, out var plain))
+        { e.CancelCommand(); if (!Editor.IsReadOnly) PastePlainText(plain); return; }
         if (!ClipboardImage.IsAvailable(e.DataObject)) return;
         e.CancelCommand();
         if (Editor.IsReadOnly) return;
@@ -398,6 +505,7 @@ public partial class MainWindow : Window
     }
     private void PastePlainText(string text)
     {
+        if (markdownEditor.Enabled) { markdownEditor.ReplaceSelection(text); Editor.Focus(); return; }
         var start = Editor.SelectionStart;
         Editor.Document.Replace(start, Editor.SelectionLength, text);
         Editor.CaretOffset = start + text.Length;
@@ -439,8 +547,7 @@ public partial class MainWindow : Window
                 if (HistoryPanel.IsVisible) RefreshHistory();
                 return;
             }
-            Editor.Document.Replace(start, length, text);
-            Editor.CaretOffset = start + text.Length; Editor.Focus(); statusNotice.Show("Screenshot text inserted");
+            Editor.Select(start, length); PastePlainText(text); statusNotice.Show("Screenshot text inserted");
         }
         catch (Exception ex) { statusNotice.Show("OCR failed: " + ex.Message); }
         finally { reading = false; }
