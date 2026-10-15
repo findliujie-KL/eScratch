@@ -93,6 +93,7 @@ public partial class SettingsWindow
             Heading("Open & navigate");
             HelpRow("Show / hide window (system-wide)", Keys(s.Shortcut));
             HelpRow("New scratch", Keys(s.NewShortcut)); HelpRow("History", "Ctrl+H"); HelpRow("Help & shortcuts", "F1");
+            HelpRow("Save copy as pinned note", "F12 · Keeps the current scratch unchanged");
             HelpRow("Close panel / hide window", "Esc");
             Heading("Paste"); HelpRow("Paste text or recognize a screenshot", "Ctrl+V"); HelpRow("Paste as Markdown", Keys(s.MarkdownShortcut));
             Heading("Format"); HelpRow("Toggle bold", "Ctrl+B"); HelpRow("Toggle italic", "Ctrl+I"); HelpRow("Toggle strikethrough", "Ctrl+Shift+X");

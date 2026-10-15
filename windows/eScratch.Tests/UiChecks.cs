@@ -44,6 +44,10 @@ internal static class UiChecks
         try
         {
             check(!window.ShowInTaskbar, "Editor has no taskbar button");
+            var trayIcon = (System.Windows.Forms.NotifyIcon)typeof(MainWindow).GetField("tray", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+            check(trayIcon.Text == "eScratch\nCtrl+J to show / hide", "Tray tooltip shows the current shortcut without implementation details");
+            var trayLabels = trayIcon.ContextMenuStrip.Items.Cast<System.Windows.Forms.ToolStripItem>().Select(item => item.Text).ToArray();
+            check(new[] { "New scratch", "History", "Always on top", "Settings", "Help & shortcuts", "Quit eScratch" }.All(trayLabels.Contains), "Tray menu exposes navigation, appearance and quit actions");
             check(store.State.Settings.LightTheme && store.State.Settings.PaperTheme == "Book paper" && window.Background is SolidColorBrush brush && brush.Color.R == 0xf6, "WPF defaults to Book paper light");
             ((Button)window.FindName("ThemeButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(!new StateStore(store.DirectoryPath).State.Settings.LightTheme && ((SolidColorBrush)window.Background).Color.R == 0x28, "Toolbar theme toggle applies and persists dark mode");
@@ -60,6 +64,19 @@ internal static class UiChecks
             ((Button)window.FindName("SettingsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((Border)window.FindName("PanelBackdrop")).Visibility == Visibility.Collapsed, "Clicking Settings again dismisses the panel");
             var editor = (TextEditor)window.FindName("Editor");
+            editor.Text = "**Pinned snapshot**\n35% - 25%";
+            editor.Select(2, 6);
+            var pinnedMenu = editor.ContextMenu.Items.OfType<MenuItem>().Single(item => (string)item.Header == "Save copy as pinned note");
+            var beforePinned = store.State.History.Count;
+            pinnedMenu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            check(store.State.History.Count == beforePinned + 1 && store.State.History[0].Pinned && store.State.History[0].Text == editor.Text, "Context menu pins a complete Markdown snapshot, not just selected text");
+            check(editor.SelectionStart == 2 && editor.SelectionLength == 6 && new StateStore(store.DirectoryPath).State.History[0].Pinned, "Pinned copy persists without changing selection");
+            var snapshot = store.State.History[0]; editor.Text = "Changed scratch";
+            check(snapshot.Text == "**Pinned snapshot**\n35% - 25%", "Pinned copy stays independent of later scratch edits");
+            editor.Clear();
+            typeof(MainWindow).GetMethod("SavePinnedCopy", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
+            check(store.State.History.Count == beforePinned + 1, "Empty scratch does not create a pinned note");
+            store.State.History.RemoveAll(entry => entry.Id == snapshot.Id); store.Save();
             var setZoom = typeof(MainWindow).GetMethod("SetZoom", BindingFlags.Instance | BindingFlags.NonPublic)!;
             setZoom.Invoke(window, new object[] { 150 });
             check(editor.FontSize == 21 && ((TextBlock)((StackPanel)window.FindName("Placeholder")).Children[0]).FontSize == 21, "Zoom scales editor text and empty-state hint together");

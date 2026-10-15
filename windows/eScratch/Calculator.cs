@@ -43,7 +43,7 @@ public static class Calculator
             var parser = new Parser(expression);
             var value = parser.Parse();
             if (double.IsNaN(value) || double.IsInfinity(value)) return false;
-            var scale = previousScale > 0 ? previousScale : ResultScale(value, parser.PreferredUnitScale);
+            var scale = previousScale > 0 ? previousScale : parser.AllNumbersArePercentages ? 0.01 : ResultScale(value, parser.PreferredUnitScale);
             value /= scale;
             var places = 2;
             if (existingPlaces >= 0)
@@ -126,6 +126,7 @@ public static class Calculator
         private readonly string text;
         private int position, depth;
         public double PreferredUnitScale { get; private set; }
+        public bool AllNumbersArePercentages { get; private set; } = true;
         public Parser(string text) { this.text = text; }
         public double Parse()
         {
@@ -184,6 +185,7 @@ public static class Calculator
             SkipSpace();
             if (!NumericText.TryRead(text, position, out var token)) throw new FormatException();
             position = token.End;
+            AllNumbersArePercentages &= token.Percent;
             if (token.UnitScale >= 1_000) PreferredUnitScale = Math.Max(PreferredUnitScale, token.UnitScale);
             return token.Value;
         }

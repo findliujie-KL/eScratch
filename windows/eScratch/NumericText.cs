@@ -20,7 +20,11 @@ public static class NumericText
             var scaled = value / unit.Item1;
             if (Math.Abs(scaled) >= 0.01m) Add(scaled.ToString(digits, CultureInfo.InvariantCulture) + unit.Item2);
         }
-        if (Math.Abs(value) < 100) Add((value * 100).ToString(digits, CultureInfo.InvariantCulture) + "%");
+        if (token.Percent || Math.Abs(value) < 100)
+        {
+            var percent = (value * 100).ToString(digits, CultureInfo.InvariantCulture);
+            Add(percent + "%"); Add(percent + " pct");
+        }
         return formats;
     }
     public readonly record struct Token(int End, double Value, double UnitScale, string Number, bool Percent);

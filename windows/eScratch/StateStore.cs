@@ -133,6 +133,14 @@ public sealed class StateStore
         State.History[index] = State.History[index] with { Pinned = !State.History[index].Pinned };
         Save();
     }
+    public void SavePinnedCopy(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        var previous = State.History.ToList();
+        State.History.Insert(0, new HistoryEntry(Guid.NewGuid().ToString("N"), text, DateTimeOffset.Now) { Pinned = true });
+        try { Save(); }
+        catch { State.History = previous; throw; }
+    }
     public bool RestoreDefaults(Func<string, bool> registerShortcut)
     {
         var defaults = new Settings();

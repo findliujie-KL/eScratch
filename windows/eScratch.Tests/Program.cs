@@ -24,6 +24,22 @@ internal static class Program
         {
             CompatibilityChecks.Run(folder, Check);
             InlineMarkdownChecks.Run(Check);
+            foreach (var theme in PaperThemes.Names)
+            foreach (var light in new[] { true, false })
+            {
+                using var icon = ThemeTrayIcon.Create(theme, light);
+                using var trayBitmap = icon.ToBitmap();
+                var expected = System.Drawing.ColorTranslator.FromHtml(PaperThemes.Palette(theme, light)["Surface"]);
+                Check(trayBitmap.GetPixel(14, 10).ToArgb() == expected.ToArgb(), "Tray paper matches " + theme + (light ? " light" : " dark"));
+                var backing = System.Drawing.ColorTranslator.FromHtml(PaperThemes.Palette(theme, !light)["Surface"]);
+                Check(trayBitmap.GetPixel(16, 3).ToArgb() == backing.ToArgb(), "Tray backing contrasts and leaves padding for " + theme + (light ? " light" : " dark"));
+                var iconPreview = Environment.GetEnvironmentVariable("ESCRATCH_TRAY_PREVIEW");
+                if (!string.IsNullOrEmpty(iconPreview)) trayBitmap.Save(iconPreview + "-" + theme.Replace(' ', '-') + (light ? "-light" : "-dark") + ".png");
+            }
+            Check(Calculator.TryLiveResult("35% -25%", out var percentageDifference) && percentageDifference == "10%", "Percentage expression retains percentage result notation");
+            Check(Calculator.TryLiveResult("25%-35%", out percentageDifference) && percentageDifference == "-10%", "Negative percentage difference retains its sign");
+            Check(Calculator.TryLiveResult("200 * 10%", out percentageDifference) && percentageDifference == "20", "Percentage applied to an ordinary amount remains an amount");
+            Check(NumericText.CopyFormats("10%").Contains("0.1") && NumericText.CopyFormats("10%").Contains("10 pct"), "Percentage result can be copied as decimal or pct text");
             var copyFormats = NumericText.CopyFormats("3.84M");
             Check(copyFormats.Contains("3,840,000") && copyFormats.Contains("3840K") && !copyFormats.Contains("384K"), "Copy formats preserve millions value in full and thousands");
             Check(NumericText.CopyFormats("3840000").Contains("3.84M"), "Plain results can be copied as millions");

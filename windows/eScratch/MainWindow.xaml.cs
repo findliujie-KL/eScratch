@@ -20,6 +20,8 @@ public partial class MainWindow : Window
     private readonly MarkdownEditor markdownEditor;
     private readonly Func<IDataObject?> readClipboard;
     private readonly Forms.NotifyIcon tray;
+    private string? trayIconTheme;
+    private readonly TrayFocusTracker trayFocus = new();
     private readonly DispatcherTimer saveTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private readonly TransientNotice statusNotice;
     private Hotkey? hotkey;
@@ -62,6 +64,11 @@ public partial class MainWindow : Window
         words.Click += (_, _) => { if (NumericText.TryToWords(Editor.SelectedText, out var result)) ReplaceNumericSelection(result); };
         menu.Items.Add(paste); menu.Items.Add(markdown); menu.Items.Add(numberDivider); menu.Items.Add(separators); menu.Items.Add(words);
         menu.Items.Add(new Separator());
+        var savePinned = new MenuItem { Header = "Save copy as pinned note", InputGestureText = "F12" };
+        savePinned.Click += (_, _) => SavePinnedCopy();
+        menu.Opened += (_, _) => savePinned.IsEnabled = !string.IsNullOrWhiteSpace(Editor.Text);
+        menu.Items.Add(savePinned);
+        menu.Items.Add(new Separator());
         foreach (var format in new[] { ("Bold", InlineStyle.Bold, "Ctrl+B"), ("Italic", InlineStyle.Italic, "Ctrl+I"), ("Strikethrough", InlineStyle.Strike, "Ctrl+Shift+X") })
         {
             var item = new MenuItem { Header = format.Item1, InputGestureText = format.Item3 };
@@ -83,10 +90,38 @@ public partial class MainWindow : Window
         CommandManager.AddPreviewCanExecuteHandler(Editor.TextArea, CanPasteImage);
         CommandManager.AddPreviewExecutedHandler(Editor.TextArea, PasteImageCommand);
         tray = new Forms.NotifyIcon { Icon = new System.Drawing.Icon(Path.Combine(AppContext.BaseDirectory, "Assets", "icon.ico")), Text = "eScratch (WPF)", Visible = true };
-        tray.DoubleClick += (_, _) => Dispatcher.Invoke(RestoreWindow);
+        tray.MouseDoubleClick += (_, e) =>
+        {
+            if (e.Button != Forms.MouseButtons.Left) return;
+            Dispatcher.Invoke(() =>
+            {
+                if (IsVisible && WindowState != WindowState.Minimized &&
+                    (IsActive || trayFocus.WasFocused(new WindowInteropHelper(this).Handle))) HideToTray();
+                else RestoreWindow();
+            });
+        };
+        Closed += (_, _) => trayFocus.Dispose();
         tray.ContextMenuStrip = new Forms.ContextMenuStrip();
-        tray.ContextMenuStrip.Items.Add("Show / Hide eScratch", null, (_, _) => Dispatcher.Invoke(Toggle));
+        tray.ContextMenuStrip.Items.Add("Show scratch", null, (_, _) => Dispatcher.Invoke(RestoreWindow));
+        tray.ContextMenuStrip.Items.Add("New scratch", null, (_, _) => Dispatcher.Invoke(() => { NewClick(this, new RoutedEventArgs()); ShowPreservingDraft(); }));
+        tray.ContextMenuStrip.Items.Add("History", null, (_, _) => Dispatcher.Invoke(() => OpenTrayPage("history")));
+        tray.ContextMenuStrip.Items.Add(new Forms.ToolStripSeparator());
+        var topItem = new Forms.ToolStripMenuItem("Always on top", null, (_, _) => Dispatcher.Invoke(() => PinClick(this, new RoutedEventArgs())));
+        tray.ContextMenuStrip.Items.Add(topItem);
+        var appearanceItem = tray.ContextMenuStrip.Items.Add("Switch to dark appearance", null, (_, _) => Dispatcher.Invoke(() => ThemeClick(this, new RoutedEventArgs())));
+        tray.ContextMenuStrip.Items.Add(new Forms.ToolStripSeparator());
+        tray.ContextMenuStrip.Items.Add("Settings", null, (_, _) => Dispatcher.Invoke(() => OpenTrayPage("settings")));
+        tray.ContextMenuStrip.Items.Add("Help & shortcuts", null, (_, _) => Dispatcher.Invoke(() => OpenTrayPage("help")));
+        tray.ContextMenuStrip.Items.Add(new Forms.ToolStripSeparator());
         tray.ContextMenuStrip.Items.Add("Quit eScratch", null, (_, _) => Dispatcher.Invoke(Quit));
+        tray.ContextMenuStrip.Opening += (_, _) =>
+        {
+
+            topItem.Checked = store.State.Settings.AlwaysOnTop;
+            appearanceItem.Text = store.State.Settings.LightTheme ? "Switch to dark appearance" : "Switch to light appearance";
+        };
+        UpdateTrayTooltip();
+        UpdateTrayIcon();
         SourceInitialized += (_, _) =>
         {
             hotkey = new Hotkey(new WindowInteropHelper(this).Handle, Toggle);
@@ -151,7 +186,9 @@ public partial class MainWindow : Window
         foreach (var color in colors) Application.Current.Resources[color.Key] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(s.LightTheme ? color.Value.Light : color.Value.Dark));
         foreach (var color in PaperThemes.Palette(s.PaperTheme, s.LightTheme)) Application.Current.Resources[color.Key] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color.Value));
         PaperBackground.Update(s);
+        UpdateTrayIcon();
         NewButton.ToolTip = "New (" + s.NewShortcut.Replace("Control", "Ctrl") + ")";
+        UpdateTrayTooltip();
         ShortcutHint.Text = s.Shortcut.Replace("Control", "Ctrl") + " to toggle window · " + s.NewShortcut.Replace("Control", "Ctrl") + " for new scratch · Ctrl+H for history";
         ThemeButton.ToolTip = s.LightTheme ? "Switch to dark theme" : "Switch to light theme";
         ThemeIcon.Data = Geometry.Parse(s.LightTheme ? "M21,12.79 A9,9 0 1 1 11.21,3 A7,7 0 0 0 21,12.79" : "M17,12 A5,5 0 1 1 7,12 A5,5 0 1 1 17,12 M12,1 V3 M12,21 V23 M1,12 H3 M21,12 H23 M4,4 L6,6 M18,18 L20,20 M4,20 L6,18 M18,6 L20,4");
@@ -184,13 +221,44 @@ public partial class MainWindow : Window
         catch (Exception ex) { statusNotice.Show("Clipboard is busy. Please try again. " + ex.Message); return false; }
     }
     private void Toggle() { if (IsVisible && WindowState != WindowState.Minimized && IsActive) HideToTray(); else RestoreWindow(); }
+    private void UpdateTrayTooltip()
+    {
+        if (tray == null) return;
+        var text = "eScratch\n" + store.State.Settings.Shortcut.Replace("Control", "Ctrl") + " to show / hide";
+        tray.Text = text.Length <= 63 ? text : text.Substring(0, 63);
+    }
+    private void UpdateTrayIcon()
+    {
+        if (tray == null) return;
+        var s = store.State.Settings;
+        var key = s.PaperTheme + ":" + s.LightTheme;
+        if (trayIconTheme == key) return;
+        var next = ThemeTrayIcon.Create(s.PaperTheme, s.LightTheme);
+        var previous = tray.Icon;
+        tray.Icon = next; trayIconTheme = key;
+        previous?.Dispose();
+    }
+    private void ShowPreservingDraft()
+    {
+        Show(); WindowState = WindowState.Normal;
+        if (store.State.Settings.OpenNearPointer) MoveNearPointer();
+        Activate(); Editor.Focus();
+    }
+    private void OpenTrayPage(string page)
+    {
+        ShowPreservingDraft(); BackClick(this, new RoutedEventArgs());
+        if (page == "history") HistoryClick(this, new RoutedEventArgs());
+        else
+        {
+            SettingsClick(this, new RoutedEventArgs());
+            if (page == "help") settingsWindow?.ShowPage("help");
+        }
+    }
     private void HideToTray() { if (store.State.Settings.CopyOnHide && !TryCopyOnHide()) return; DismissConfirmation(); SaveState(); settingsWindow?.Close(); Hide(); }
     private void RestoreWindow()
     {
         if (!IsVisible || WindowState == WindowState.Minimized) StartResumedEntry();
-        Show(); WindowState = WindowState.Normal;
-        if (store.State.Settings.OpenNearPointer) MoveNearPointer();
-        Activate(); Editor.Focus();
+        ShowPreservingDraft();
     }
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
@@ -230,6 +298,12 @@ public partial class MainWindow : Window
     {
         try { store.Remember(Editor.Text); Editor.Clear(); SaveState(); BackClick(sender, e); }
         catch (Exception ex) { statusNotice.Show("Could not save history: " + ex.Message); }
+    }
+    private void SavePinnedCopy()
+    {
+        if (string.IsNullOrWhiteSpace(Editor.Text)) { statusNotice.Show("Nothing to save yet."); return; }
+        try { store.SavePinnedCopy(Editor.Text); RefreshHistory(); statusNotice.Show("Saved a pinned copy"); }
+        catch (Exception ex) { statusNotice.Show("Could not save pinned note: " + ex.Message); }
     }
     private void BackClick(object sender, RoutedEventArgs e)
     {
@@ -375,6 +449,11 @@ public partial class MainWindow : Window
         if ((e.Key == Key.D0 || e.Key == Key.NumPad0) && Keyboard.Modifiers == ModifierKeys.Control)
         { SetZoom(100); e.Handled = true; return; }
         if (settingsWindow != null) return;
+        if (e.Key == Key.F12 && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            if (!e.IsRepeat) SavePinnedCopy();
+            e.Handled = true; return;
+        }
         if (Editor.IsKeyboardFocusWithin)
         {
             var modifiers = Keyboard.Modifiers;

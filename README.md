@@ -6,7 +6,7 @@ A scratchpad one keyboard shortcut away. Capture a thought, draft a message, pas
 
 ## Download
 
-[**Download the Windows 3.0 installer**](https://github.com/findliujie-KL/eScratch/releases/download/v3.0.0-net48/eScratch-3.0.0-net48-win-x64-setup.exe) · [Release notes and checksums](https://github.com/findliujie-KL/eScratch/releases/tag/v3.0.0-net48)
+[**Download the Windows 3.0.1 installer**](https://github.com/findliujie-KL/eScratch/releases/download/v3.0.1-net48/eScratch-3.0.1-net48-win-x64-setup.exe) · [Release notes and checksums](https://github.com/findliujie-KL/eScratch/releases/tag/v3.0.1-net48)
 
 For Windows 10/11 x64. The compact installer checks for .NET Framework 4.8+ and the Visual C++ x64 runtime used by OCR, and offers downloads when needed. Packages are unsigned. Existing notes and settings are preserved.
 
@@ -16,7 +16,7 @@ For Windows 10/11 x64. The compact installer checks for .NET Framework 4.8+ and 
 
 *Actual WPF interface rendered with demonstration text, not personal notes.*
 
-- **Quick access:** Ctrl+J shows the window or brings it forward; press again while active to hide it. The shortcut is customizable. Closing hides the app to the tray; double-click the tray icon to reopen, or use its menu to quit.
+- **Quick access:** Ctrl+J shows the window or brings it forward; press again while active to hide it. The shortcut is customizable. Closing hides the app to the tray; double-click the tray icon to use the same toggle behavior. Its menu offers New scratch, History, Always on top, appearance, Settings, Help and Quit. Opening History, Settings or Help from the tray preserves your draft.
 - **Simple formatting:** switch between editable bold, italic, strikethrough and their Markdown source. Notes remain plain Markdown. Headings, lists and tables are not rendered.
 - **Your paper:** Book paper is the default. Porcelain, Sage notebook and Drafting paper each have light/dark pairs and adjustable texture. Sage rules follow font size, wrapping and zoom.
 - **Your typography:** preview installed fonts, choose a base size, and use Left, Center or Justify alignment. Justify is the default. Zoom ranges from 75% to 250%.
@@ -52,6 +52,7 @@ The gear opens **Quick settings** for the toggle shortcut, reopening the last sc
 | Show / hide window (system-wide) | Ctrl+J |
 | New scratch | Ctrl+T |
 | History | Ctrl+H |
+| Save a copy of the current scratch as a pinned note | F12 |
 | Paste / screenshot OCR | Ctrl+V |
 | Paste as Markdown | Ctrl+Shift+V |
 | Bold / italic / strikethrough | Ctrl+B / Ctrl+I / Ctrl+Shift+X |

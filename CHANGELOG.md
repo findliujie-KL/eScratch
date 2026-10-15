@@ -2,6 +2,16 @@
 
 User-facing changes for this branch. “Unreleased” means changes after the last tagged baseline; development milestone dates are commit dates, not release dates. Installer files may have been updated separately from tags.
 
+## 3.0.1 — 2026-10-15
+
+- Tray icon uses a padded, tilted folded note colored to match the active paper theme, with a contrasting light/dark backing.
+
+- Tray double-click hides the focused scratch or brings an unfocused scratch forward, accounting for the tray taking focus. Tooltip shows the current shortcut; the tray menu adds new scratch, history, always-on-top, appearance, settings and help. Opening a page from the tray preserves the current draft.
+
+- F12 and the editor context menu save the entire scratch as a separate pinned history note, preserving the current text and selection.
+
+- Preserve percentage notation when all operands are percentages, including automatic results. Result copy menus also offer equivalent `pct` text and decimal values.
+
 ## 3.0.0 — 2026-10-12
 
 - Book paper is now the default theme for new profiles and restored defaults; existing theme choices are preserved.
